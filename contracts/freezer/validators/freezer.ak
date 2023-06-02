@@ -15,5 +15,4 @@ validator {
     )
   }
 }
-
 // TODO(pi): Write some tests with a realistic ScriptContext
