@@ -6,8 +6,11 @@ on:
   pull_request:
 
 jobs:
-  build:
+  freezer:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./contracts/freezer
     steps:
       - uses: actions/checkout@v3
 
