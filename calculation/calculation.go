@@ -313,6 +313,11 @@ func CalculateEarnings(date time.Time, program types.Program, positions []types.
 		}
 	}
 
+	// If no pools are qualified (extremely degenerate case, return no earnings, and reserve those tokens for the treasury)
+	if _, ok := delegationByPool[""]; len(delegationByPool) == 0 || (ok && len(delegationByPool) == 1) {
+		return nil
+	}
+
 	// The top pools ... will be eligible for yield farming rewards that day.
 	poolsReceivingEmissions := SelectPoolsForEmission(program, delegationByPool, pools)
 
