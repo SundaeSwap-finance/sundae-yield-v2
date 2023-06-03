@@ -1,9 +1,7 @@
 use aiken/interval.{Finite, Interval, IntervalBound}
 use aiken/list
+use aiken/time.{PosixTime}
 use aiken/transaction.{ValidityRange}
-
-pub type POSIXTime =
-  Int
 
 // TODO stdlib
 pub fn count(self: List<a>, predicate: fn(a) -> Bool) -> Int {
@@ -25,8 +23,8 @@ pub type NativeScript {
   AllOf { scripts: List<NativeScript> }
   AnyOf { scripts: List<NativeScript> }
   AtLeast { required: Int, scripts: List<NativeScript> }
-  Before { time: POSIXTime }
-  After { time: POSIXTime }
+  Before { time: PosixTime }
+  After { time: PosixTime }
 }
 
 pub fn satisfied(
