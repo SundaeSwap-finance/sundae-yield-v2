@@ -1,17 +1,16 @@
-package datum
+package types
 
 import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/SundaeSwap-finance/sundae-yield-v2/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
 type StakeDatum struct {
 	_           struct{} `cbor:",toarray"`
 	Owner       NativeScript
-	Delegations []types.Delegation
+	Delegations []Delegation
 }
 
 func (s *StakeDatum) UnmarshalCBOR(bytes []byte) error {
@@ -37,7 +36,7 @@ func (s *StakeDatum) UnmarshalCBOR(bytes []byte) error {
 		if err := cbor.Unmarshal(rawDelegation.Content, &delegation); err != nil {
 			return err
 		}
-		s.Delegations = append(s.Delegations, types.Delegation{
+		s.Delegations = append(s.Delegations, Delegation{
 			PoolIdent: hex.EncodeToString(delegation.PoolIdent),
 			Weight:    delegation.Weight,
 		})

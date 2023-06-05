@@ -1,4 +1,4 @@
-package datum
+package types
 
 import (
 	"fmt"
@@ -14,6 +14,11 @@ type NativeScript struct {
 	AtLeast   *AtLeast
 	Before    *Before
 	After     *After
+}
+
+func (n NativeScript) Hash() string {
+	// TODO: hash
+	return ""
 }
 
 func (n *NativeScript) UnmarshalCBOR(b []byte) error {

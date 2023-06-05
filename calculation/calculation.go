@@ -210,7 +210,7 @@ func TotalLPByOwnerAndAsset(positions []types.Position, pools map[string]types.P
 		for assetId, amount := range p.Value.Assets {
 			if _, ok := poolsByLP[assetId]; ok {
 				lpValue := chainsync.Value{Coins: num.Int64(0), Assets: map[chainsync.AssetID]num.Int{assetId: amount}}
-				lpByOwner[p.Owner] = chainsync.Add(lpByOwner[p.Owner], lpValue)
+				lpByOwner[p.OwnerID] = chainsync.Add(lpByOwner[p.OwnerID], lpValue)
 				lpByAsset[assetId] += amount.Uint64()
 			}
 		}

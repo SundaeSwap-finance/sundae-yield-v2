@@ -190,7 +190,7 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y"},
 	}
 	byOwner, byAsset := TotalLPByOwnerAndAsset([]types.Position{
-		{Owner: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
+		{OwnerID: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
 	}, pools)
 	assert.EqualValues(t, map[string]chainsync.Value{
 		"A": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}},
@@ -200,8 +200,8 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	}, byAsset)
 
 	byOwner, byAsset = TotalLPByOwnerAndAsset([]types.Position{
-		{Owner: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
-		{Owner: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200)}}},
+		{OwnerID: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
+		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200)}}},
 	}, pools)
 	assert.EqualValues(t, map[string]chainsync.Value{
 		"A": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}},
@@ -212,9 +212,9 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	}, byAsset)
 
 	byOwner, byAsset = TotalLPByOwnerAndAsset([]types.Position{
-		{Owner: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
-		{Owner: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200)}}},
-		{Owner: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
+		{OwnerID: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
+		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200)}}},
+		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
 	}, pools)
 	assert.EqualValues(t, map[string]chainsync.Value{
 		"A": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}},
@@ -225,9 +225,9 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	}, byAsset)
 
 	byOwner, byAsset = TotalLPByOwnerAndAsset([]types.Position{
-		{Owner: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
-		{Owner: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200), "LP_Y": num.Uint64(150)}}},
-		{Owner: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
+		{OwnerID: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
+		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200), "LP_Y": num.Uint64(150)}}},
+		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
 	}, pools)
 	assert.EqualValues(t, map[string]chainsync.Value{
 		"A": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}},
@@ -327,7 +327,7 @@ func Test_Calculate_Earnings(t *testing.T) {
 	for i := 0; i < numPositions; i++ {
 		numSundae := rand.Int63n(50_000_000_000_000)
 		position := types.Position{
-			Owner: fmt.Sprintf("Owner_%v", rand.Intn(numOwners)),
+			OwnerID: fmt.Sprintf("Owner_%v", rand.Intn(numOwners)),
 			Value: chainsync.Value{
 				Assets: map[chainsync.AssetID]num.Int{
 					program.StakedAsset: num.Int64(numSundae),

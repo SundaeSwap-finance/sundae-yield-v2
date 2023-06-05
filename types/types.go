@@ -30,7 +30,8 @@ type Delegation struct {
 }
 
 type Position struct {
-	Owner string // TODO(pi): owner
+	OwnerID string
+	Owner   NativeScript
 
 	Value      chainsync.Value
 	Delegation []Delegation

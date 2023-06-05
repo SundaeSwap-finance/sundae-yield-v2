@@ -1,4 +1,4 @@
-package datum
+package types
 
 import (
 	"encoding/hex"
