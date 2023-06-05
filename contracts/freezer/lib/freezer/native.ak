@@ -19,7 +19,7 @@ pub fn count(self: List<a>, predicate: fn(a) -> Bool) -> Int {
 }
 
 pub type NativeScript {
-  Signature { keyHash: ByteArray }
+  Signature { key_hash: ByteArray }
   AllOf { scripts: List<NativeScript> }
   AnyOf { scripts: List<NativeScript> }
   AtLeast { required: Int, scripts: List<NativeScript> }
@@ -33,7 +33,7 @@ pub fn satisfied(
   validRange: ValidityRange,
 ) -> Bool {
   when script is {
-    Signature { keyHash } -> list.has(signatories, keyHash)
+    Signature { key_hash } -> list.has(signatories, key_hash)
     AllOf { scripts } ->
       list.all(scripts, fn(s) { satisfied(s, signatories, validRange) })
     AnyOf { scripts } ->
@@ -67,15 +67,15 @@ pub fn satisfied(
 }
 
 test satisfying() {
-  let keyHash1 = "key1"
-  let keyHash2 = "key2"
-  let keyHash3 = "key3"
-  let sig1 = Signature { keyHash: keyHash1 }
-  let sig2 = Signature { keyHash: keyHash2 }
-  let sig3 = Signature { keyHash: keyHash3 }
-  let allOf = AllOf { scripts: [sig1, sig2] }
-  let anyOf = AnyOf { scripts: [sig1, sig2] }
-  let atLeast = AtLeast { required: 2, scripts: [sig1, sig2, sig3] }
+  let key_hash1 = "key1"
+  let key_hash2 = "key2"
+  let key_hash3 = "key3"
+  let sig1 = Signature { key_hash: key_hash1 }
+  let sig2 = Signature { key_hash: key_hash2 }
+  let sig3 = Signature { key_hash: key_hash3 }
+  let all_of = AllOf { scripts: [sig1, sig2] }
+  let any_of = AnyOf { scripts: [sig1, sig2] }
+  let at_least = AtLeast { required: 2, scripts: [sig1, sig2, sig3] }
   let before = Before { time: 10 }
   let after = After { time: 10 }
   let between = AllOf { scripts: [After { time: 10 }, Before { time: 15 }] }
@@ -108,22 +108,22 @@ test satisfying() {
     }
   list.and(
     [
-      satisfied(sig1, [keyHash1], validRange(0, 1))?,
-      satisfied(sig2, [keyHash1, keyHash2], validRange(0, 1))?,
-      satisfied(allOf, [keyHash1, keyHash2], validRange(0, 1))?,
-      satisfied(anyOf, [keyHash2], validRange(0, 1))?,
-      satisfied(atLeast, [keyHash2, keyHash3], validRange(0, 1))?,
+      satisfied(sig1, [key_hash1], validRange(0, 1))?,
+      satisfied(sig2, [key_hash1, key_hash2], validRange(0, 1))?,
+      satisfied(all_of, [key_hash1, key_hash2], validRange(0, 1))?,
+      satisfied(any_of, [key_hash2], validRange(0, 1))?,
+      satisfied(at_least, [key_hash2, key_hash3], validRange(0, 1))?,
       satisfied(before, [], validRange(0, 5))?,
       satisfied(after, [], validRange(15, 20))?,
       satisfied(after, [], validRange(10, 15))?,
       satisfied(between, [], validRange(12, 13))?,
-      satisfied(vesting, [keyHash1], validRange(0, 5))?,
-      satisfied(vesting, [keyHash2], validRange(15, 20))?,
-      unsatisfied(sig1, [keyHash2], validRange(0, 1))?,
-      unsatisfied(sig3, [keyHash1, keyHash2], validRange(0, 1))?,
-      unsatisfied(allOf, [keyHash1, keyHash3], validRange(0, 1))?,
-      unsatisfied(anyOf, [keyHash3], validRange(0, 1))?,
-      unsatisfied(atLeast, [keyHash2], validRange(0, 1))?,
+      satisfied(vesting, [key_hash1], validRange(0, 5))?,
+      satisfied(vesting, [key_hash2], validRange(15, 20))?,
+      unsatisfied(sig1, [key_hash2], validRange(0, 1))?,
+      unsatisfied(sig3, [key_hash1, key_hash2], validRange(0, 1))?,
+      unsatisfied(all_of, [key_hash1, key_hash3], validRange(0, 1))?,
+      unsatisfied(any_of, [key_hash3], validRange(0, 1))?,
+      unsatisfied(at_least, [key_hash2], validRange(0, 1))?,
       unsatisfied(before, [], validRange(5, 15))?,
       unsatisfied(before, [], validRange(5, 10))?,
       unsatisfied(before, [], validRange(10, 10))?,
@@ -134,11 +134,11 @@ test satisfying() {
       unsatisfied(between, [], validRange(13, 20))?,
       unsatisfied(between, [], validRange(13, 15))?,
       unsatisfied(between, [], validRange(15, 20))?,
-      unsatisfied(vesting, [keyHash2], validRange(0, 5))?,
-      unsatisfied(vesting, [keyHash1], validRange(15, 20))?,
-      unsatisfied(vesting, [keyHash3], validRange(10, 10))?,
-      unsatisfied(vesting, [keyHash3], validRange(0, 5))?,
-      unsatisfied(vesting, [keyHash3], validRange(15, 20))?,
+      unsatisfied(vesting, [key_hash2], validRange(0, 5))?,
+      unsatisfied(vesting, [key_hash1], validRange(15, 20))?,
+      unsatisfied(vesting, [key_hash3], validRange(10, 10))?,
+      unsatisfied(vesting, [key_hash3], validRange(0, 5))?,
+      unsatisfied(vesting, [key_hash3], validRange(15, 20))?,
     ],
   )
 }

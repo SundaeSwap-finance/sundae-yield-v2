@@ -6,6 +6,12 @@ type StakeDatum {
   data: Data,
 }
 
+// NOTE: Unused, but this is the type we intend to store in Data above
+type Delegation {
+  pool_ident: ByteArray,
+  weight: Int,
+}
+
 validator {
   fn stake(datum: StakeDatum, _r: Void, ctx: ScriptContext) -> Bool {
     native.satisfied(
