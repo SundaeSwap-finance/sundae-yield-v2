@@ -14,6 +14,8 @@ import (
 
 func sampleProgram(emissions uint64) types.Program {
 	return types.Program{
+		FirstDailyRewards:   "2001-01-01",
+		LastDailyRewards:    "2099-01-01", // If this code is still in use in 2099, call the police (after updating tests)
 		StakedAsset:         chainsync.AssetID("Staked"),
 		MinLPIntegerPercent: 1,
 		EmittedAsset:        chainsync.AssetID("Emitted"),
@@ -302,20 +304,20 @@ func Test_EmissionsToOwners(t *testing.T) {
 }
 
 func Test_EmissionsToEarnings(t *testing.T) {
-	now := time.Now()
+	now := types.Date(time.Now().Format(types.DateFormat))
 	program := sampleProgram(500_000)
 	emissions := EmissionsByOwnerToEarnings(now, program, map[string]uint64{
 		"A": 1000,
 		"B": 1500,
 	})
 	assert.EqualValues(t, []types.Earning{
-		{Owner: "A", Date: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1000)}}},
-		{Owner: "B", Date: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1500)}}},
+		{Owner: "A", EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1000)}}},
+		{Owner: "B", EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1500)}}},
 	}, emissions)
 }
 
 func Test_Calculate_Earnings(t *testing.T) {
-	now := time.Now()
+	now := types.Date(time.Now().Format(types.DateFormat))
 	program := sampleProgram(500_000_000_000)
 	var positions []types.Position
 	pools := map[string]types.Pool{}

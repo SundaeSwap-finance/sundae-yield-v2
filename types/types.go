@@ -1,12 +1,16 @@
 package types
 
 import (
-	"time"
-
 	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync"
 )
 
+const DateFormat = "2006-01-02" // Format dates like this, so they can be compared lexographically
+type Date = string
+
 type Program struct {
+	FirstDailyRewards Date
+	LastDailyRewards  Date
+
 	DailyEmission     uint64 // TODO: generalize to asset?
 	EmittedAsset      chainsync.AssetID
 	StakedAsset       chainsync.AssetID
@@ -38,7 +42,7 @@ type Position struct {
 }
 
 type Earning struct {
-	Owner string
-	Date  time.Time
-	Value chainsync.Value
+	Owner      string
+	EarnedDate Date
+	Value      chainsync.Value
 }

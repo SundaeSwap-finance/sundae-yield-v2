@@ -3,7 +3,6 @@ package calculation
 import (
 	"math/big"
 	"sort"
-	"time"
 
 	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync"
 	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync/num"
@@ -288,12 +287,12 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 	return emissionsByOwner
 }
 
-func EmissionsByOwnerToEarnings(date time.Time, program types.Program, emissionsByOwner map[string]uint64) []types.Earning {
+func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emissionsByOwner map[string]uint64) []types.Earning {
 	var ret []types.Earning
 	for owner, amount := range emissionsByOwner {
 		ret = append(ret, types.Earning{
-			Owner: owner,
-			Date:  date,
+			Owner:      owner,
+			EarnedDate: date,
 			Value: chainsync.Value{
 				Coins: num.Int64(0),
 				Assets: map[chainsync.AssetID]num.Int{
@@ -305,7 +304,15 @@ func EmissionsByOwnerToEarnings(date time.Time, program types.Program, emissions
 	return ret
 }
 
-func CalculateEarnings(date time.Time, program types.Program, positions []types.Position, pools map[string]types.Pool) []types.Earning {
+func CalculateEarnings(date types.Date, program types.Program, positions []types.Position, pools map[string]types.Pool) []types.Earning {
+	// Check for start and end dates, inclusive
+	if date < program.FirstDailyRewards {
+		return nil
+	}
+	if program.LastDailyRewards != "" && date > program.LastDailyRewards {
+		return nil
+	}
+
 	// To calculate the daily emissions, ... first take inventory of SUNDAE held at the Locking Contract
 	// and factory in the users delegation
 	delegationByPool := CalculateTotalDelegations(program, positions)
