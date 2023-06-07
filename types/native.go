@@ -21,12 +21,14 @@ func (n NativeScript) Hash() string {
 	return ""
 }
 
+const tagBase = 120
+
 func (n *NativeScript) UnmarshalCBOR(b []byte) error {
 	var rawTag cbor.RawTag
 	if err := cbor.Unmarshal(b, &rawTag); err != nil {
 		return err
 	}
-	switch rawTag.Number - 120 {
+	switch rawTag.Number - tagBase {
 	case 1:
 		return cbor.Unmarshal(rawTag.Content, &n.Signature)
 	case 2:
@@ -40,7 +42,7 @@ func (n *NativeScript) UnmarshalCBOR(b []byte) error {
 	case 6:
 		return cbor.Unmarshal(rawTag.Content, &n.After)
 	default:
-		return fmt.Errorf("unrecognized tag %v", rawTag.Number-120)
+		return fmt.Errorf("unrecognized tag %v", rawTag.Number-tagBase)
 	}
 }
 

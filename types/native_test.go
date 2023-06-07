@@ -15,22 +15,22 @@ func mustDecode(t *testing.T, s string) []byte {
 	return b
 }
 
-func Test_UnmarshalNativeScript(t *testing.T) {
+func Test_MarshalUnmarshalNativeScript(t *testing.T) {
 	type testCase struct {
-		label    string
-		cbor     []byte
-		expected NativeScript
+		label  string
+		cbor   []byte
+		script NativeScript
 	}
 	testCases := []testCase{
 		{
-			label:    "Signature",
-			cbor:     mustDecode(t, "d8799f581c6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786dff"),
-			expected: NativeScript{Signature: &Signature{KeyHash: mustDecode(t, "6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786d")}},
+			label:  "Signature",
+			cbor:   mustDecode(t, "d8799f581c6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786dff"),
+			script: NativeScript{Signature: &Signature{KeyHash: mustDecode(t, "6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786d")}},
 		},
 		{
 			label: "AllOf",
 			cbor:  mustDecode(t, "d87a9f9fd8799f581c6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786dffd8799f581c6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786dffffff"),
-			expected: NativeScript{AllOf: &AllOf{
+			script: NativeScript{AllOf: &AllOf{
 				Scripts: []NativeScript{
 					{Signature: &Signature{KeyHash: mustDecode(t, "6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786d")}},
 					{Signature: &Signature{KeyHash: mustDecode(t, "6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786d")}},
@@ -40,7 +40,7 @@ func Test_UnmarshalNativeScript(t *testing.T) {
 		{
 			label: "AtLeast",
 			cbor:  mustDecode(t, "d87c9f029fd8799f581c6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786dffd8799f581c6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786dffffff"),
-			expected: NativeScript{AtLeast: &AtLeast{
+			script: NativeScript{AtLeast: &AtLeast{
 				Required: 2,
 				Scripts: []NativeScript{
 					{Signature: &Signature{KeyHash: mustDecode(t, "6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786d")}},
@@ -51,7 +51,7 @@ func Test_UnmarshalNativeScript(t *testing.T) {
 		{
 			label: "AtLeastBefore",
 			cbor:  mustDecode(t, "d87c9f029fd8799f581c6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786dffd8799f581c6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786dffd87d9f1a647d6573ffffff"),
-			expected: NativeScript{AtLeast: &AtLeast{
+			script: NativeScript{AtLeast: &AtLeast{
 				Required: 2,
 				Scripts: []NativeScript{
 					{Signature: &Signature{KeyHash: mustDecode(t, "6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786d")}},
@@ -65,7 +65,15 @@ func Test_UnmarshalNativeScript(t *testing.T) {
 		t.Run(tc.label, func(t *testing.T) {
 			var ns NativeScript
 			assert.Nil(t, cbor.Unmarshal(tc.cbor, &ns))
-			assert.EqualValues(t, tc.expected, ns)
+			assert.EqualValues(t, tc.script, ns)
 		})
+		/*
+			t.Run(tc.label, func(t *testing.T) {
+				bytes, err := cbor.Marshal(tc.script)
+				assert.Nil(t, err)
+				fmt.Printf("%v\n", hex.EncodeToString(bytes))
+				assert.EqualValues(t, tc.cbor, bytes)
+			})
+		*/
 	}
 }
