@@ -124,9 +124,14 @@ func SelectPoolsForEmission(program types.Program, delegationsByPool map[string]
 	sort.Slice(candidates, func(i, j int) bool {
 		// In the case of an exact tie (very unlikely), prefer the one with less liquidity
 		// under the hypothesis that less liquidity needs to attract more liquidity providers
-		// technically wasn't part of the spec
+		// (technically wasn't part of the spec, and so we make a reasonable choice)
 		if candidates[i].Total == candidates[j].Total {
-			return pools[candidates[i].PoolIdent].TotalLPTokens < pools[candidates[j].PoolIdent].TotalLPTokens
+			iLP := pools[candidates[i].PoolIdent].TotalLPTokens
+			jLP := pools[candidates[j].PoolIdent].TotalLPTokens
+			if iLP == jLP {
+				return candidates[i].PoolIdent < candidates[j].PoolIdent
+			}
+			return iLP < jLP
 		}
 		return candidates[i].Total > candidates[j].Total
 	})
@@ -182,6 +187,9 @@ func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissions m
 		panic("emitted more to pools than the daily emissions, somehow")
 	} else if remainder > 0 {
 		sort.Slice(poolWeights, func(i, j int) bool {
+			if poolWeights[i].Amount == poolWeights[j].Amount {
+				return poolWeights[i].PoolIdent < poolWeights[j].PoolIdent
+			}
 			return poolWeights[i].Amount > poolWeights[j].Amount
 		})
 		for i := 0; i < remainder; i++ {
