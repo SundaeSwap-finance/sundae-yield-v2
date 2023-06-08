@@ -32,7 +32,7 @@ validator {
 }
 
 test test_can_unlock() {
-  // TODO: compiler bug
+  // TODO: compiler bug https://github.com/aiken-lang/aiken/issues/591
   // let tx =
   //   Transaction {
   //     inputs: [
