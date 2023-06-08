@@ -1,14 +1,19 @@
-name = "sundae/freezer"
+name = "SundaeSwap-finance/freezer"
 version = "0.0.0"
 license = "Apache-2.0"
-description = "Aiken contracts for project 'sundae/freezer'"
+description = "Aiken contracts for Sundae Yield Farming"
 
 [repository]
-user = "sundae"
+user = "SundaeSwap-finance"
 project = "freezer"
 platform = "github"
 
 [[dependencies]]
 name = "aiken-lang/stdlib"
+version = "main"
+source = "github"
+
+[[dependencies]]
+name = "SundaeSwap-finance/aicone"
 version = "main"
 source = "github"

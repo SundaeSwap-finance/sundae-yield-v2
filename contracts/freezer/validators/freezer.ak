@@ -1,8 +1,8 @@
 use aiken/transaction.{ScriptContext}
-use freezer/native
+use sundae/multisig.{MultisigScript}
 
 type StakeDatum {
-  owner: native.NativeScript,
+  owner: MultisigScript,
   data: Data,
 }
 
@@ -14,7 +14,7 @@ type Delegation {
 
 validator {
   fn stake(datum: StakeDatum, _r: Void, ctx: ScriptContext) -> Bool {
-    native.satisfied(
+    multisig.satisfied(
       datum.owner,
       ctx.transaction.extra_signatories,
       ctx.transaction.validity_range,
