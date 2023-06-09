@@ -237,19 +237,19 @@ func RegroupByAsset(byPool map[string]uint64, poolsByIdent map[string]types.Pool
 func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emissionsByAsset map[chainsync.AssetID]uint64, lpTokensByAsset map[chainsync.AssetID]uint64) map[string]uint64 {
 	// expand out the lpTokensByOwner, so we can sort them canonically for the round-robin
 	type OwnerStake struct {
-		Owner string
-		Value chainsync.Value
+		OwnerID string
+		Value   chainsync.Value
 	}
 	var ownerStakes []OwnerStake
-	for owner, value := range lpTokensByOwner {
-		ownerStakes = append(ownerStakes, OwnerStake{Owner: owner, Value: value})
+	for ownerId, value := range lpTokensByOwner {
+		ownerStakes = append(ownerStakes, OwnerStake{OwnerID: ownerId, Value: value})
 	}
 	// We sort by owner key here; in theory we could sort by "total value staked", but it's
 	// very difficult to compare that here, so we just sort by owner;
 	// This can result in at most one diminutive unit of a token, ex. 1 millionth of a SUNDAE
 	// if we ever distribute a token that has a high diminutive value (like an XDIAMOND), we may need to revist this
 	sort.Slice(ownerStakes, func(i, j int) bool {
-		return ownerStakes[i].Owner < ownerStakes[j].Owner
+		return ownerStakes[i].OwnerID < ownerStakes[j].OwnerID
 	})
 
 	// Now loop over each, and allocate a portion of the emissions
@@ -263,7 +263,7 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 			frac = frac.Mul(frac, amount.BigInt())
 			frac = frac.Div(frac, big.NewInt(0).SetUint64(totalLP))
 			allocation := frac.Uint64()
-			emissionsByOwner[ownerStake.Owner] += allocation
+			emissionsByOwner[ownerStake.OwnerID] += allocation
 			allocatedByAsset[assetId] += allocation
 		}
 	}
@@ -276,7 +276,7 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 		} else if remainder > 0 {
 			for i := 0; i < remainder; i++ {
 				owner := ownerStakes[i%len(ownerStakes)]
-				emissionsByOwner[owner.Owner] += 1
+				emissionsByOwner[owner.OwnerID] += 1
 				allocatedAmount += 1
 			}
 			if emissionsByAsset[assetId] != allocatedAmount {

@@ -1,10 +1,12 @@
 package types
 
 import (
+	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/crypto/blake2b"
 )
 
 type NativeScript struct {
@@ -16,9 +18,21 @@ type NativeScript struct {
 	After     *After
 }
 
-func (n NativeScript) Hash() string {
-	// TODO: hash
-	return ""
+func (n NativeScript) Hash() (string, error) {
+	bytes, err := cbor.Marshal(&n)
+	if err != nil {
+		return "", err
+	}
+	b2, err := blake2b.New(224/8, nil)
+	if err != nil {
+		return "", err
+	}
+	_, err = b2.Write(bytes)
+	if err != nil {
+		return "", err
+	}
+	hash := b2.Sum(nil)
+	return hex.EncodeToString(hash), nil
 }
 
 const tagBase = 120
@@ -45,10 +59,40 @@ func (n *NativeScript) UnmarshalCBOR(b []byte) error {
 		return fmt.Errorf("unrecognized tag %v", rawTag.Number-tagBase)
 	}
 }
+func (n *NativeScript) MarshalCBOR() ([]byte, error) {
+	switch {
+	case n.Signature != nil:
+		return cbor.Marshal(&n.Signature)
+	case n.AllOf != nil:
+		return cbor.Marshal(&n.AllOf)
+	case n.AnyOf != nil:
+		return cbor.Marshal(&n.AnyOf)
+	case n.AtLeast != nil:
+		return cbor.Marshal(&n.AtLeast)
+	case n.Before != nil:
+		return cbor.Marshal(&n.Before)
+	case n.After != nil:
+		return cbor.Marshal(&n.After)
+	default:
+		return nil, fmt.Errorf("invalid native script")
+	}
+}
 
 type Signature struct {
 	_       struct{} `cbor:",toarray"`
 	KeyHash []byte
+}
+
+func (n *Signature) MarshalCBOR() ([]byte, error) {
+	var bytes []byte
+	bytes = append(bytes, 0x9f) // indefinite length array
+	key, err := cbor.Marshal(&n.KeyHash)
+	if err != nil {
+		return nil, err
+	}
+	bytes = append(bytes, key...)
+	bytes = append(bytes, 0xff) // end indefinite length array
+	return cbor.Marshal(cbor.RawTag{Number: 1 + tagBase, Content: bytes})
 }
 
 type AllOf struct {
@@ -56,9 +100,41 @@ type AllOf struct {
 	Scripts []NativeScript
 }
 
+func (n *AllOf) MarshalCBOR() ([]byte, error) {
+	var bytes []byte
+	bytes = append(bytes, 0x9f) // indefinite length array for the struct
+	bytes = append(bytes, 0x9f) // indefinite length array for the scripts
+	for _, script := range n.Scripts {
+		s, err := cbor.Marshal(&script)
+		if err != nil {
+			return nil, err
+		}
+		bytes = append(bytes, s...)
+	}
+	bytes = append(bytes, 0xff) // end indefinite length array for the scripts
+	bytes = append(bytes, 0xff) // end indefinite length array for the structs
+	return cbor.Marshal(cbor.RawTag{Number: 2 + tagBase, Content: bytes})
+}
+
 type AnyOf struct {
 	_       struct{} `cbor:",toarray"`
 	Scripts []NativeScript
+}
+
+func (n *AnyOf) MarshalCBOR() ([]byte, error) {
+	var bytes []byte
+	bytes = append(bytes, 0x9f) // indefinite length array for the struct
+	bytes = append(bytes, 0x9f) // indefinite length array for the scripts
+	for _, script := range n.Scripts {
+		s, err := cbor.Marshal(&script)
+		if err != nil {
+			return nil, err
+		}
+		bytes = append(bytes, s...)
+	}
+	bytes = append(bytes, 0xff) // end indefinite length array for the scripts
+	bytes = append(bytes, 0xff) // end indefinite length array for the structs
+	return cbor.Marshal(cbor.RawTag{Number: 3 + tagBase, Content: bytes})
 }
 
 type AtLeast struct {
@@ -67,12 +143,57 @@ type AtLeast struct {
 	Scripts  []NativeScript
 }
 
+func (n *AtLeast) MarshalCBOR() ([]byte, error) {
+	var bytes []byte
+	bytes = append(bytes, 0x9f) // indefinite length array for the struct
+	req, err := cbor.Marshal(&n.Required)
+	if err != nil {
+		return nil, err
+	}
+	bytes = append(bytes, req...) // The Required property
+	bytes = append(bytes, 0x9f)   // indefinite length array for the scripts
+	for _, script := range n.Scripts {
+		s, err := cbor.Marshal(&script)
+		if err != nil {
+			return nil, err
+		}
+		bytes = append(bytes, s...)
+	}
+	bytes = append(bytes, 0xff) // end indefinite length array for the scripts
+	bytes = append(bytes, 0xff) // end indefinite length array for the structs
+	return cbor.Marshal(cbor.RawTag{Number: 4 + tagBase, Content: bytes})
+}
+
 type Before struct {
 	_    struct{} `cbor:",toarray"`
 	Time time.Time
 }
 
+func (n *Before) MarshalCBOR() ([]byte, error) {
+	var bytes []byte
+	bytes = append(bytes, 0x9f) // indefinite length array for the struct
+	time, err := cbor.Marshal(&n.Time)
+	if err != nil {
+		return nil, err
+	}
+	bytes = append(bytes, time...) // The Time property
+	bytes = append(bytes, 0xff)    // end indefinite length array for the structs
+	return cbor.Marshal(cbor.RawTag{Number: 5 + tagBase, Content: bytes})
+}
+
 type After struct {
 	_    struct{} `cbor:",toarray"`
 	Time time.Time
+}
+
+func (n *After) MarshalCBOR() ([]byte, error) {
+	var bytes []byte
+	bytes = append(bytes, 0x9f) // indefinite length array for the struct
+	time, err := cbor.Marshal(&n.Time)
+	if err != nil {
+		return nil, err
+	}
+	bytes = append(bytes, time...) // The Time property
+	bytes = append(bytes, 0xff)    // end indefinite length array for the structs
+	return cbor.Marshal(cbor.RawTag{Number: 6 + tagBase, Content: bytes})
 }
