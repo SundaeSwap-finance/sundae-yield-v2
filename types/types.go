@@ -44,6 +44,7 @@ type Position struct {
 type Earning struct {
 	OwnerID    string
 	Owner      MultisigScript
+	Program    string
 	EarnedDate Date
 	Value      chainsync.Value
 }
