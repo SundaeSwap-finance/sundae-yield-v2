@@ -2,14 +2,13 @@ package types
 
 import (
 	"encoding/hex"
-	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
 )
 
 type StakeDatum struct {
 	_           struct{} `cbor:",toarray"`
-	Owner       NativeScript
+	Owner       MultisigScript
 	Delegations []Delegation
 }
 
@@ -20,7 +19,7 @@ func (s *StakeDatum) UnmarshalCBOR(bytes []byte) error {
 	}
 	var intermediate struct {
 		_           struct{} `cbor:",toarray"`
-		Owner       NativeScript
+		Owner       MultisigScript
 		Delegations []cbor.RawTag
 	}
 	if err := cbor.Unmarshal(rawTag.Content, &intermediate); err != nil {
@@ -41,6 +40,5 @@ func (s *StakeDatum) UnmarshalCBOR(bytes []byte) error {
 			Weight:    delegation.Weight,
 		})
 	}
-	fmt.Printf("~~ %+v\n", s)
 	return nil
 }

@@ -12,7 +12,7 @@ func Test_UnmarshalDatum(t *testing.T) {
 	var datum StakeDatum
 	assert.Nil(t, cbor.Unmarshal(bytes, &datum))
 	assert.EqualValues(t, StakeDatum{
-		Owner: NativeScript{Signature: &Signature{KeyHash: mustDecode(t, "6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786d")}},
+		Owner: MultisigScript{Signature: &Signature{KeyHash: mustDecode(t, "6a5cf1e931c3bd034543b93ef9731cf16847e038b020033db359786d")}},
 		Delegations: []Delegation{
 			{PoolIdent: "08", Weight: 10},
 			{PoolIdent: "09", Weight: 15},

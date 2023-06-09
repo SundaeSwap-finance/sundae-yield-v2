@@ -291,7 +291,7 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 	var ret []types.Earning
 	for owner, amount := range emissionsByOwner {
 		ret = append(ret, types.Earning{
-			Owner:      owner,
+			OwnerID:    owner,
 			EarnedDate: date,
 			Value: chainsync.Value{
 				Coins: num.Int64(0),

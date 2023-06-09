@@ -35,14 +35,15 @@ type Delegation struct {
 
 type Position struct {
 	OwnerID string
-	Owner   NativeScript
+	Owner   MultisigScript
 
 	Value      chainsync.Value
 	Delegation []Delegation
 }
 
 type Earning struct {
-	Owner      string
+	OwnerID    string
+	Owner      MultisigScript
 	EarnedDate Date
 	Value      chainsync.Value
 }

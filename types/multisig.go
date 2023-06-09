@@ -9,7 +9,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-type NativeScript struct {
+type MultisigScript struct {
 	Signature *Signature
 	AllOf     *AllOf
 	AnyOf     *AnyOf
@@ -18,7 +18,7 @@ type NativeScript struct {
 	After     *After
 }
 
-func (n NativeScript) Hash() (string, error) {
+func (n MultisigScript) Hash() (string, error) {
 	bytes, err := cbor.Marshal(&n)
 	if err != nil {
 		return "", err
@@ -37,7 +37,7 @@ func (n NativeScript) Hash() (string, error) {
 
 const tagBase = 120
 
-func (n *NativeScript) UnmarshalCBOR(b []byte) error {
+func (n *MultisigScript) UnmarshalCBOR(b []byte) error {
 	var rawTag cbor.RawTag
 	if err := cbor.Unmarshal(b, &rawTag); err != nil {
 		return err
@@ -59,7 +59,7 @@ func (n *NativeScript) UnmarshalCBOR(b []byte) error {
 		return fmt.Errorf("unrecognized tag %v", rawTag.Number-tagBase)
 	}
 }
-func (n *NativeScript) MarshalCBOR() ([]byte, error) {
+func (n *MultisigScript) MarshalCBOR() ([]byte, error) {
 	switch {
 	case n.Signature != nil:
 		return cbor.Marshal(&n.Signature)
@@ -97,7 +97,7 @@ func (n *Signature) MarshalCBOR() ([]byte, error) {
 
 type AllOf struct {
 	_       struct{} `cbor:",toarray"`
-	Scripts []NativeScript
+	Scripts []MultisigScript
 }
 
 func (n *AllOf) MarshalCBOR() ([]byte, error) {
@@ -118,7 +118,7 @@ func (n *AllOf) MarshalCBOR() ([]byte, error) {
 
 type AnyOf struct {
 	_       struct{} `cbor:",toarray"`
-	Scripts []NativeScript
+	Scripts []MultisigScript
 }
 
 func (n *AnyOf) MarshalCBOR() ([]byte, error) {
@@ -140,7 +140,7 @@ func (n *AnyOf) MarshalCBOR() ([]byte, error) {
 type AtLeast struct {
 	_        struct{} `cbor:",toarray"`
 	Required int
-	Scripts  []NativeScript
+	Scripts  []MultisigScript
 }
 
 func (n *AtLeast) MarshalCBOR() ([]byte, error) {

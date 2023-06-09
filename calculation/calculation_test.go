@@ -311,8 +311,8 @@ func Test_EmissionsToEarnings(t *testing.T) {
 		"B": 1500,
 	})
 	assert.EqualValues(t, []types.Earning{
-		{Owner: "A", EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1000)}}},
-		{Owner: "B", EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1500)}}},
+		{OwnerID: "A", EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1000)}}},
+		{OwnerID: "B", EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1500)}}},
 	}, emissions)
 }
 
