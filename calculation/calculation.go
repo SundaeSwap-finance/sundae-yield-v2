@@ -287,11 +287,12 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 	return emissionsByOwner
 }
 
-func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emissionsByOwner map[string]uint64) []types.Earning {
+func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emissionsByOwner map[string]uint64, ownersByID map[string]types.MultisigScript) []types.Earning {
 	var ret []types.Earning
-	for owner, amount := range emissionsByOwner {
+	for ownerID, amount := range emissionsByOwner {
 		ret = append(ret, types.Earning{
-			OwnerID:    owner,
+			OwnerID:    ownerID,
+			Owner:      ownersByID[ownerID],
 			EarnedDate: date,
 			Value: chainsync.Value{
 				Coins: num.Int64(0),
@@ -348,7 +349,12 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 
 	emissionsByOwner := DistributeEmissionsToOwners(lpTokensByOwner, emissionsByAsset, lpTokensByAsset)
 
+	ownersByID := map[string]types.MultisigScript{}
+	for _, position := range positions {
+		ownersByID[position.OwnerID] = position.Owner
+	}
+
 	// Users will be able to claim these emitted tokens
 	// we return a set of "earnings" for the day
-	return EmissionsByOwnerToEarnings(date, program, emissionsByOwner)
+	return EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID)
 }

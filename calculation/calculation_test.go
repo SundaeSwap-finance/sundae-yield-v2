@@ -306,13 +306,18 @@ func Test_EmissionsToOwners(t *testing.T) {
 func Test_EmissionsToEarnings(t *testing.T) {
 	now := types.Date(time.Now().Format(types.DateFormat))
 	program := sampleProgram(500_000)
+	ownerA := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("A")}}
+	ownerB := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("B")}}
 	emissions := EmissionsByOwnerToEarnings(now, program, map[string]uint64{
 		"A": 1000,
 		"B": 1500,
+	}, map[string]types.MultisigScript{
+		"A": ownerA,
+		"B": ownerB,
 	})
 	assert.EqualValues(t, []types.Earning{
-		{OwnerID: "A", EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1000)}}},
-		{OwnerID: "B", EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1500)}}},
+		{OwnerID: "A", Owner: ownerA, EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1000)}}},
+		{OwnerID: "B", Owner: ownerB, EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1500)}}},
 	}, emissions)
 }
 
@@ -328,8 +333,10 @@ func Test_Calculate_Earnings(t *testing.T) {
 
 	for i := 0; i < numPositions; i++ {
 		numSundae := rand.Int63n(50_000_000_000_000)
+		owner := fmt.Sprintf("Owner_%v", rand.Intn(numOwners))
 		position := types.Position{
-			OwnerID: fmt.Sprintf("Owner_%v", rand.Intn(numOwners)),
+			OwnerID: owner,
+			Owner:   types.MultisigScript{Signature: &types.Signature{KeyHash: []byte(owner)}},
 			Value: chainsync.Value{
 				Assets: map[chainsync.AssetID]num.Int{
 					program.StakedAsset: num.Int64(numSundae),
