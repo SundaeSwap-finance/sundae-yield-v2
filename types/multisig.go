@@ -10,12 +10,12 @@ import (
 )
 
 type MultisigScript struct {
-	Signature *Signature
-	AllOf     *AllOf
-	AnyOf     *AnyOf
-	AtLeast   *AtLeast
-	Before    *Before
-	After     *After
+	Signature *Signature `json:"signature,omitempty" dynamodbav:"signature,omitempty"`
+	AllOf     *AllOf     `json:"allOf,omitempty" dynamodbav:"allOf,omitempty"`
+	AnyOf     *AnyOf     `json:"anyOf,omitempty" dynamodbav:"anyOf,omitempty"`
+	AtLeast   *AtLeast   `json:"atLeast,omitempty" dynamodbav:"atLeast,omitempty"`
+	Before    *Before    `json:"before,omitempty" dynamodbav:"before,omitempty"`
+	After     *After     `json:"after,omitempty" dynamodbav:"after,omitempty"`
 }
 
 func (n MultisigScript) Hash() (string, error) {
