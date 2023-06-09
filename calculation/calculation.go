@@ -301,6 +301,10 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 			},
 		})
 	}
+	// Order them by OwnerID, for testability; no impact on the outcome
+	sort.Slice(ret, func(i, j int) bool {
+		return ret[i].OwnerID < ret[j].OwnerID
+	})
 	return ret
 }
 
