@@ -331,6 +331,8 @@ func Test_Calculate_Earnings(t *testing.T) {
 	numOwners := rand.Intn(numPositions-1) + 1
 	numPools := rand.Intn(300) + 100
 
+	lockedByPool := map[int]uint64{}
+
 	for i := 0; i < numPositions; i++ {
 		numSundae := rand.Int63n(50_000_000_000_000)
 		owner := fmt.Sprintf("Owner_%v", rand.Intn(numOwners))
@@ -352,8 +354,11 @@ func Test_Calculate_Earnings(t *testing.T) {
 
 		numLP := rand.Intn(15)
 		for j := 0; j < numLP; j++ {
-			lp := chainsync.AssetID(fmt.Sprintf("LP_%v", rand.Intn(numPools)))
-			position.Value.Assets[lp] = num.Int64(rand.Int63n(30_000_000))
+			pool := rand.Intn(numPools)
+			lp := chainsync.AssetID(fmt.Sprintf("LP_%v", pool))
+			amt := rand.Int63n(30_000_000)
+			position.Value.Assets[lp] = num.Int64(amt)
+			lockedByPool[pool] += uint64(amt)
 		}
 		numOtherTokens := rand.Intn(5)
 		for j := 0; j < numOtherTokens; j++ {
@@ -368,7 +373,7 @@ func Test_Calculate_Earnings(t *testing.T) {
 		poolIdent := fmt.Sprintf("Pool_%v", i)
 		pools[poolIdent] = types.Pool{
 			PoolIdent:     poolIdent,
-			TotalLPTokens: uint64(rand.Int63n(100_000_000_000_000)) + 30_000_000,
+			TotalLPTokens: lockedByPool[i] + uint64(rand.Int63n(100_000_000_000)),
 			LPAsset:       chainsync.AssetID(fmt.Sprintf("LP_%v", i)),
 		}
 	}
@@ -383,4 +388,5 @@ func Test_Calculate_Earnings(t *testing.T) {
 	} else {
 		assert.Equal(t, total, program.DailyEmission)
 	}
+	assert.Fail(t, "")
 }
