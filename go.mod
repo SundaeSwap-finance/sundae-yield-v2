@@ -6,7 +6,7 @@ require (
 	github.com/SundaeSwap-finance/ogmigo v0.7.8
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/tj/assert v0.0.3
-	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/crypto v0.0.0-20220314234659-1baeb1ce4c0b
 )
 
 require (
