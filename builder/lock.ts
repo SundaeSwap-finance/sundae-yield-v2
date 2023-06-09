@@ -5,7 +5,7 @@ import { parse } from "https://deno.land/std@0.184.0/flags/mod.ts";
 const flags = parse(Deno.args, {
   boolean: ["help", "dry", "list-utxos"],
   string: ["skeyFile", "mnemonic", "mnemonicFile", "blockfrost", "env", "blueprint"],
-  collect: ["lock"]
+  collect: ["lock", "delegation"]
 });
 
 const blockfrost = new Blockfrost(
@@ -44,8 +44,17 @@ async function readValidator(): Promise<SpendingValidator> {
   };
 }
 
+const delegations: Data = [];
+for(const delegation of (flags.delegation || [])) {
+  const parts = (delegation as string).split(" ")
+  delegations.push(new Constr(1, [
+    parts[0],
+    BigInt(parts[1])
+  ]))
+}
+
 const validator = await readValidator();
-const datum = buildDatum(await lucid.wallet.address())
+const datum = buildDatum(await lucid.wallet.address(), delegations)
 
 
 const assets: Assets = {}
@@ -58,6 +67,7 @@ for(const lock_ of flags.lock) {
 const hash = await lock(assets, { into: validator, datum: Data.to(datum) })
 console.log(`Transaction Hash: ${hash}`)
 if(!flags.dry) {
+  console.log(`Waiting for tx ${hash}.`)
   await lucid.awaitTx(hash);
   console.log("Tx Seen.")
 }
@@ -87,6 +97,7 @@ async function lock(assets: Assets, { into, datum }: { into: Script, datum: stri
  
   if (flags.dry) {
     console.log("DRY: transaction not submitted")
+    console.log(`Tx: ${signedTx.toString()}`)
     return signedTx.toHash();
   } else {
     return signedTx.submit();
