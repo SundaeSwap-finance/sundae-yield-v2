@@ -388,5 +388,4 @@ func Test_Calculate_Earnings(t *testing.T) {
 	} else {
 		assert.Equal(t, total, program.DailyEmission)
 	}
-	assert.Fail(t, "")
 }
