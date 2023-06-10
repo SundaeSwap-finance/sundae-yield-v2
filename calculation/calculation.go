@@ -299,6 +299,9 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emissionsByOwner map[string]uint64, ownersByID map[string]types.MultisigScript) []types.Earning {
 	var ret []types.Earning
 	for ownerID, amount := range emissionsByOwner {
+		if amount == 0 {
+			continue
+		}
 		ret = append(ret, types.Earning{
 			OwnerID:    ownerID,
 			Owner:      ownersByID[ownerID],

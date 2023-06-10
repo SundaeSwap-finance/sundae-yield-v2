@@ -308,12 +308,15 @@ func Test_EmissionsToEarnings(t *testing.T) {
 	program := sampleProgram(500_000)
 	ownerA := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("A")}}
 	ownerB := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("B")}}
+	ownerC := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("B")}}
 	emissions := EmissionsByOwnerToEarnings(now, program, map[string]uint64{
 		"A": 1000,
 		"B": 1500,
+		"C": 0,
 	}, map[string]types.MultisigScript{
 		"A": ownerA,
 		"B": ownerB,
+		"C": ownerC,
 	})
 	assert.EqualValues(t, []types.Earning{
 		{OwnerID: "A", Owner: ownerA, EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1000)}}},
