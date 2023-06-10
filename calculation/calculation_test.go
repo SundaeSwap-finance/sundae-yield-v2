@@ -108,6 +108,7 @@ func Test_AtLeastOnePercent(t *testing.T) {
 	assert.False(t, atLeastIntegerPercent(149, 15000, 1))
 	assert.False(t, atLeastIntegerPercent(1499, 150000, 1))
 	assert.False(t, atLeastIntegerPercent(1234, 15000, 9))
+	assert.True(t, atLeastIntegerPercent(0, 15000, 0))
 	assert.True(t, atLeastIntegerPercent(150, 15000, 1))
 	assert.True(t, atLeastIntegerPercent(151, 15000, 1))
 	assert.True(t, atLeastIntegerPercent(9000, 15000, 1))
@@ -119,18 +120,25 @@ func Test_QualifiedPools(t *testing.T) {
 	program := sampleProgram(500_000)
 	poolA := types.Pool{PoolIdent: "A", TotalLPTokens: 1500}
 	poolB := types.Pool{PoolIdent: "B", TotalLPTokens: 1500}
-	assert.True(t, isPoolQualified(program, poolA, 150))
-	assert.True(t, isPoolQualified(program, poolA, 500))
-	assert.False(t, isPoolQualified(program, poolA, 10))
+	qualified, _ := isPoolQualified(program, poolA, 150)
+	assert.True(t, qualified)
+	qualified, _ = isPoolQualified(program, poolA, 500)
+	assert.True(t, qualified)
+	qualified, _ = isPoolQualified(program, poolA, 10)
+	assert.False(t, qualified)
 
 	program.EligiblePools = []string{"A"}
-	assert.True(t, isPoolQualified(program, poolA, 500))
-	assert.False(t, isPoolQualified(program, poolB, 500))
+	qualified, _ = isPoolQualified(program, poolA, 500)
+	assert.True(t, qualified)
+	qualified, _ = isPoolQualified(program, poolB, 500)
+	assert.False(t, qualified)
 	program.EligiblePools = nil
 
 	program.DisqualifiedPools = []string{"A"}
-	assert.False(t, isPoolQualified(program, poolA, 500))
-	assert.True(t, isPoolQualified(program, poolB, 500))
+	qualified, _ = isPoolQualified(program, poolA, 500)
+	assert.False(t, qualified)
+	qualified, _ = isPoolQualified(program, poolB, 500)
+	assert.True(t, qualified)
 }
 
 func Test_PoolForEmissions(t *testing.T) {

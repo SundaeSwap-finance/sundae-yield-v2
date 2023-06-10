@@ -1,6 +1,7 @@
 package calculation
 
 import (
+	"fmt"
 	"math/big"
 	"sort"
 
@@ -76,6 +77,9 @@ func CalculateTotalLP(positions []types.Position, poolsByIdent map[string]types.
 
 // Check, that `portion“ is at least `percent` of `total“
 func atLeastIntegerPercent(portion uint64, total uint64, percent int) bool {
+	if percent == 0 {
+		return true
+	}
 	if portion == 0 {
 		return false
 	}
@@ -83,26 +87,26 @@ func atLeastIntegerPercent(portion uint64, total uint64, percent int) bool {
 }
 
 // Check if a pool is even *qualified* for rewards
-func isPoolQualified(program types.Program, pool types.Pool, locked uint64) bool {
+func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (bool, string) {
 	if !atLeastIntegerPercent(locked, pool.TotalLPTokens, program.MinLPIntegerPercent) {
-		return false
+		return false, fmt.Sprintf("less than %v%% of LP tokens locked", program.MinLPIntegerPercent)
 	}
 	if program.EligiblePools != nil {
 		for _, poolIdent := range program.EligiblePools {
 			if poolIdent == pool.PoolIdent {
-				return true
+				return true, ""
 			}
 		}
-		return false
+		return false, "Program lists eligible pools, but doesn't list this pool"
 	} else if program.DisqualifiedPools != nil {
 		for _, poolIdent := range program.DisqualifiedPools {
 			if poolIdent == pool.PoolIdent {
-				return false
+				return false, "Pool is explicitly disqualified"
 			}
 		}
-		return true
+		return true, ""
 	}
-	return true
+	return true, ""
 }
 
 // Select the top pools according to the program criteria
@@ -329,12 +333,13 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 }
 
 type CalculationOutputs struct {
-	DelegationByPool           map[string]uint64
-	QualifyingDelegationByPool map[string]uint64
-	LockedLPByPool             map[string]uint64
-	EmissionsByPool            map[string]uint64
-	EmissionsByOwner           map[string]uint64
-	Earnings                   []types.Earning
+	DelegationByPool            map[string]uint64
+	QualifyingDelegationByPool  map[string]uint64
+	PoolDisqualificationReasons map[string]string
+	LockedLPByPool              map[string]uint64
+	EmissionsByPool             map[string]uint64
+	EmissionsByOwner            map[string]uint64
+	Earnings                    []types.Earning
 }
 
 func CalculateEarnings(date types.Date, program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) CalculationOutputs {
@@ -353,8 +358,13 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 	// Any pool that has less than 1% of the pools LP tokens held at the Locking Contract
 	// will be considered an abstention and will not be eligible for rewards.
 	totalLockedLPTokens := CalculateTotalLP(positions, poolsByIdent)
+	poolDisqualificationReasons := map[string]string{}
 	for poolIdent, locked := range totalLockedLPTokens {
-		if !isPoolQualified(program, poolsByIdent[poolIdent], locked) {
+		qualified, reason := isPoolQualified(program, poolsByIdent[poolIdent], locked)
+		if !qualified {
+			if reason != "" {
+				poolDisqualificationReasons[poolIdent] = reason
+			}
 			qualifyingDelegationsPerPool[""] += delegationByPool[poolIdent]
 		} else {
 			qualifyingDelegationsPerPool[poolIdent] += delegationByPool[poolIdent]
@@ -386,11 +396,12 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 	// we return a set of "earnings" for the day
 	earnings := EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID)
 	return CalculationOutputs{
-		DelegationByPool:           delegationByPool,
-		QualifyingDelegationByPool: qualifyingDelegationsPerPool,
-		LockedLPByPool:             totalLockedLPTokens,
-		EmissionsByPool:            RegroupByPool(emissionsByAsset, poolsByIdent),
-		EmissionsByOwner:           emissionsByOwner,
-		Earnings:                   earnings,
+		DelegationByPool:            delegationByPool,
+		QualifyingDelegationByPool:  qualifyingDelegationsPerPool,
+		PoolDisqualificationReasons: poolDisqualificationReasons,
+		LockedLPByPool:              totalLockedLPTokens,
+		EmissionsByPool:             RegroupByPool(emissionsByAsset, poolsByIdent),
+		EmissionsByOwner:            emissionsByOwner,
+		Earnings:                    earnings,
 	}
 }
