@@ -228,6 +228,9 @@ func TotalLPByOwnerAndAsset(positions []types.Position, poolsByIdent map[string]
 func RegroupByAsset(byPool map[string]uint64, poolsByIdent map[string]types.Pool) map[chainsync.AssetID]uint64 {
 	byLPAsset := map[chainsync.AssetID]uint64{}
 	for poolIdent, amount := range byPool {
+		if amount == 0 {
+			continue
+		}
 		pool := poolsByIdent[poolIdent]
 		byLPAsset[pool.LPAsset] = amount
 	}
@@ -238,6 +241,9 @@ func RegroupByPool(byAsset map[chainsync.AssetID]uint64, poolsByIdent map[string
 	// Note: assumes bijection
 	byIdent := map[string]uint64{}
 	for poolIdent, pool := range poolsByIdent {
+		if byAsset[pool.LPAsset] == 0 {
+			continue
+		}
 		byIdent[poolIdent] = byAsset[pool.LPAsset]
 	}
 	return byIdent
