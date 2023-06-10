@@ -293,6 +293,7 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 		ret = append(ret, types.Earning{
 			OwnerID:    ownerID,
 			Owner:      ownersByID[ownerID],
+			Program:    program.ID,
 			EarnedDate: date,
 			Value: chainsync.Value{
 				Coins: num.Int64(0),

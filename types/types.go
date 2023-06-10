@@ -8,6 +8,7 @@ const DateFormat = "2006-01-02" // Format dates like this, so they can be compar
 type Date = string
 
 type Program struct {
+	ID                string
 	FirstDailyRewards Date
 	LastDailyRewards  Date
 
