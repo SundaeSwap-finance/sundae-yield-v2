@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"sort"
+	"time"
 
 	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync"
 	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync/num"
@@ -312,7 +313,7 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 		if amount == 0 {
 			continue
 		}
-		ret = append(ret, types.Earning{
+		earning := types.Earning{
 			OwnerID:    ownerID,
 			Owner:      ownersByID[ownerID],
 			Program:    program.ID,
@@ -323,7 +324,16 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 					program.EmittedAsset: num.Uint64(amount),
 				},
 			},
-		})
+		}
+		if program.EarningExpiration != nil {
+			time, err := time.Parse(types.DateFormat, date)
+			if err != nil {
+				panic(fmt.Sprintf("invalid date %v", date))
+			}
+			expiration := time.Add(*program.EarningExpiration)
+			earning.ExpirationDate = &expiration
+		}
+		ret = append(ret, earning)
 	}
 	// Order them by OwnerID, for testability; no impact on the outcome
 	sort.Slice(ret, func(i, j int) bool {

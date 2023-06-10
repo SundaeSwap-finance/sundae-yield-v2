@@ -1,6 +1,8 @@
 package types
 
 import (
+	"time"
+
 	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync"
 )
 
@@ -12,9 +14,12 @@ type Program struct {
 	FirstDailyRewards Date
 	LastDailyRewards  Date
 
-	DailyEmission     uint64 // TODO: generalize to asset?
-	EmittedAsset      chainsync.AssetID
-	StakedAsset       chainsync.AssetID
+	DailyEmission uint64 // TODO: generalize to asset?
+	EmittedAsset  chainsync.AssetID
+	StakedAsset   chainsync.AssetID
+
+	EarningExpiration *time.Duration
+
 	EligiblePools     []string
 	DisqualifiedPools []string
 
@@ -43,9 +48,10 @@ type Position struct {
 }
 
 type Earning struct {
-	OwnerID    string
-	Owner      MultisigScript
-	Program    string
-	EarnedDate Date
-	Value      chainsync.Value
+	OwnerID        string
+	Owner          MultisigScript
+	Program        string
+	EarnedDate     Date
+	ExpirationDate *time.Time
+	Value          chainsync.Value
 }
