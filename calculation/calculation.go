@@ -329,11 +329,12 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 }
 
 type CalculationOutputs struct {
-	DelegationByPool map[string]uint64
-	LockedLPByPool   map[string]uint64
-	EmissionsByPool  map[string]uint64
-	EmissionsByOwner map[string]uint64
-	Earnings         []types.Earning
+	DelegationByPool           map[string]uint64
+	QualifyingDelegationByPool map[string]uint64
+	LockedLPByPool             map[string]uint64
+	EmissionsByPool            map[string]uint64
+	EmissionsByOwner           map[string]uint64
+	Earnings                   []types.Earning
 }
 
 func CalculateEarnings(date types.Date, program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) CalculationOutputs {
@@ -348,25 +349,25 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 	// To calculate the daily emissions, ... first take inventory of SUNDAE held at the Locking Contract
 	// and factory in the users delegation
 	delegationByPool := CalculateTotalDelegations(program, positions)
-
+	qualifyingDelegationsPerPool := map[string]uint64{}
 	// Any pool that has less than 1% of the pools LP tokens held at the Locking Contract
 	// will be considered an abstention and will not be eligible for rewards.
 	totalLockedLPTokens := CalculateTotalLP(positions, poolsByIdent)
 	for poolIdent, locked := range totalLockedLPTokens {
 		if !isPoolQualified(program, poolsByIdent[poolIdent], locked) {
-			// Disqualify this pool, moving it's delegation to the "undelegated amounts"
-			delegationByPool[""] += delegationByPool[poolIdent]
-			delete(delegationByPool, poolIdent)
+			qualifyingDelegationsPerPool[""] += delegationByPool[poolIdent]
+		} else {
+			qualifyingDelegationsPerPool[poolIdent] += delegationByPool[poolIdent]
 		}
 	}
 
 	// If no pools are qualified (extremely degenerate case, return no earnings, and reserve those tokens for the treasury)
 	if _, ok := delegationByPool[""]; len(delegationByPool) == 0 || (ok && len(delegationByPool) == 1) {
-		return CalculationOutputs{DelegationByPool: delegationByPool, LockedLPByPool: totalLockedLPTokens}
+		return CalculationOutputs{DelegationByPool: delegationByPool, QualifyingDelegationByPool: qualifyingDelegationsPerPool, LockedLPByPool: totalLockedLPTokens}
 	}
 
 	// The top pools ... will be eligible for yield farming rewards that day.
-	poolsReceivingEmissions := SelectPoolsForEmission(program, delegationByPool, poolsByIdent)
+	poolsReceivingEmissions := SelectPoolsForEmission(program, qualifyingDelegationsPerPool, poolsByIdent)
 
 	// We then divide the daily emissions among these pools ...
 	emissionsByAsset := RegroupByAsset(DistributeEmissionsToPools(program, poolsReceivingEmissions), poolsByIdent)
@@ -385,10 +386,11 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 	// we return a set of "earnings" for the day
 	earnings := EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID)
 	return CalculationOutputs{
-		DelegationByPool: delegationByPool,
-		LockedLPByPool:   totalLockedLPTokens,
-		EmissionsByPool:  RegroupByPool(emissionsByAsset, poolsByIdent),
-		EmissionsByOwner: emissionsByOwner,
-		Earnings:         earnings,
+		DelegationByPool:           delegationByPool,
+		QualifyingDelegationByPool: qualifyingDelegationsPerPool,
+		LockedLPByPool:             totalLockedLPTokens,
+		EmissionsByPool:            RegroupByPool(emissionsByAsset, poolsByIdent),
+		EmissionsByOwner:           emissionsByOwner,
+		Earnings:                   earnings,
 	}
 }
