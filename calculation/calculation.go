@@ -226,12 +226,21 @@ func TotalLPByOwnerAndAsset(positions []types.Position, poolsByIdent map[string]
 }
 
 func RegroupByAsset(byPool map[string]uint64, poolsByIdent map[string]types.Pool) map[chainsync.AssetID]uint64 {
-	poolsByLPAsset := map[chainsync.AssetID]uint64{}
+	byLPAsset := map[chainsync.AssetID]uint64{}
 	for poolIdent, amount := range byPool {
 		pool := poolsByIdent[poolIdent]
-		poolsByLPAsset[pool.LPAsset] = amount
+		byLPAsset[pool.LPAsset] = amount
 	}
-	return poolsByLPAsset
+	return byLPAsset
+}
+
+func RegroupByPool(byAsset map[chainsync.AssetID]uint64, poolsByIdent map[string]types.Pool) map[string]uint64 {
+	// Note: assumes bijection
+	byIdent := map[string]uint64{}
+	for poolIdent, pool := range poolsByIdent {
+		byIdent[poolIdent] = byAsset[pool.LPAsset]
+	}
+	return byIdent
 }
 
 func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emissionsByAsset map[chainsync.AssetID]uint64, lpTokensByAsset map[chainsync.AssetID]uint64) map[string]uint64 {
@@ -310,13 +319,13 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 	return ret
 }
 
-func CalculateEarnings(date types.Date, program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) []types.Earning {
+func CalculateEarnings(date types.Date, program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) ([]types.Earning, map[string]uint64) {
 	// Check for start and end dates, inclusive
 	if date < program.FirstDailyRewards {
-		return nil
+		return nil, nil
 	}
 	if program.LastDailyRewards != "" && date > program.LastDailyRewards {
-		return nil
+		return nil, nil
 	}
 
 	// To calculate the daily emissions, ... first take inventory of SUNDAE held at the Locking Contract
@@ -336,7 +345,7 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 
 	// If no pools are qualified (extremely degenerate case, return no earnings, and reserve those tokens for the treasury)
 	if _, ok := delegationByPool[""]; len(delegationByPool) == 0 || (ok && len(delegationByPool) == 1) {
-		return nil
+		return nil, nil
 	}
 
 	// The top pools ... will be eligible for yield farming rewards that day.
@@ -357,5 +366,5 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 
 	// Users will be able to claim these emitted tokens
 	// we return a set of "earnings" for the day
-	return EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID)
+	return EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID), RegroupByPool(emissionsByAsset, poolsByIdent)
 }

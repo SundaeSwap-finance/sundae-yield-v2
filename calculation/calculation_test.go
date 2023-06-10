@@ -378,7 +378,7 @@ func Test_Calculate_Earnings(t *testing.T) {
 		}
 	}
 
-	earnings := CalculateEarnings(now, program, positions, pools)
+	earnings, _ := CalculateEarnings(now, program, positions, pools)
 	total := uint64(0)
 	for _, e := range earnings {
 		total += e.Value.Assets[program.EmittedAsset].Uint64()
