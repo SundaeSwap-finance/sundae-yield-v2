@@ -381,13 +381,13 @@ func Test_Calculate_Earnings(t *testing.T) {
 		}
 	}
 
-	earnings, _ := CalculateEarnings(now, program, positions, pools)
+	calcOutputs := CalculateEarnings(now, program, positions, pools)
 	total := uint64(0)
-	for _, e := range earnings {
+	for _, e := range calcOutputs.Earnings {
 		total += e.Value.Assets[program.EmittedAsset].Uint64()
 	}
 	if total == 0 {
-		assert.Empty(t, earnings)
+		assert.Empty(t, calcOutputs.Earnings)
 	} else {
 		assert.Equal(t, total, program.DailyEmission)
 	}

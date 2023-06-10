@@ -328,13 +328,21 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 	return ret
 }
 
-func CalculateEarnings(date types.Date, program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) ([]types.Earning, map[string]uint64) {
+type CalculationOutputs struct {
+	DelegationByPool map[string]uint64
+	LockedLPByPool   map[string]uint64
+	EmissionsByPool  map[string]uint64
+	EmissionsByOwner map[string]uint64
+	Earnings         []types.Earning
+}
+
+func CalculateEarnings(date types.Date, program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) CalculationOutputs {
 	// Check for start and end dates, inclusive
 	if date < program.FirstDailyRewards {
-		return nil, nil
+		return CalculationOutputs{}
 	}
 	if program.LastDailyRewards != "" && date > program.LastDailyRewards {
-		return nil, nil
+		return CalculationOutputs{}
 	}
 
 	// To calculate the daily emissions, ... first take inventory of SUNDAE held at the Locking Contract
@@ -354,7 +362,7 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 
 	// If no pools are qualified (extremely degenerate case, return no earnings, and reserve those tokens for the treasury)
 	if _, ok := delegationByPool[""]; len(delegationByPool) == 0 || (ok && len(delegationByPool) == 1) {
-		return nil, nil
+		return CalculationOutputs{DelegationByPool: delegationByPool, LockedLPByPool: totalLockedLPTokens}
 	}
 
 	// The top pools ... will be eligible for yield farming rewards that day.
@@ -375,5 +383,12 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 
 	// Users will be able to claim these emitted tokens
 	// we return a set of "earnings" for the day
-	return EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID), RegroupByPool(emissionsByAsset, poolsByIdent)
+	earnings := EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID)
+	return CalculationOutputs{
+		DelegationByPool: delegationByPool,
+		LockedLPByPool:   totalLockedLPTokens,
+		EmissionsByPool:  RegroupByPool(emissionsByAsset, poolsByIdent),
+		EmissionsByOwner: emissionsByOwner,
+		Earnings:         earnings,
+	}
 }
