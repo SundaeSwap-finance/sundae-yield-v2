@@ -40,7 +40,7 @@ type Delegation struct {
 }
 
 type Position struct {
-	OwnerID string
+	OwnerID string `dynamodbav:"ownerID" ddb:"gsi_hash:ByOwner"`
 	Owner   MultisigScript
 
 	Value      chainsync.Value
