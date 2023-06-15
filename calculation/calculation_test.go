@@ -333,14 +333,35 @@ func Test_EmissionsToEarnings(t *testing.T) {
 }
 
 func Test_Calculate_Earnings(t *testing.T) {
+	numPositions := rand.Intn(3000) + 1000
+	numOwners := rand.Intn(numPositions-1) + 1
+	numPools := rand.Intn(300) + 100
+	program, calcOutputs := Random_Calc_Earnings(numPositions, numOwners, numPools)
+	total := uint64(0)
+	for _, e := range calcOutputs.Earnings {
+		total += e.Value.Assets[program.EmittedAsset].Uint64()
+	}
+	if total == 0 {
+		assert.Empty(t, calcOutputs.Earnings)
+	} else {
+		assert.Equal(t, total, program.DailyEmission)
+	}
+}
+
+func Benchmark_Calculate_Earnings(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		numPositions := 100_000
+		numOwners := 90_000
+		numPools := 1500
+		Random_Calc_Earnings(numPositions, numOwners, numPools)
+	}
+}
+
+func Random_Calc_Earnings(numPositions, numOwners, numPools int) (types.Program, CalculationOutputs) {
 	now := types.Date(time.Now().Format(types.DateFormat))
 	program := sampleProgram(500_000_000_000)
 	var positions []types.Position
 	pools := map[string]types.Pool{}
-
-	numPositions := rand.Intn(3000) + 1000
-	numOwners := rand.Intn(numPositions-1) + 1
-	numPools := rand.Intn(300) + 100
 
 	lockedByPool := map[int]uint64{}
 
@@ -389,14 +410,5 @@ func Test_Calculate_Earnings(t *testing.T) {
 		}
 	}
 
-	calcOutputs := CalculateEarnings(now, program, positions, pools)
-	total := uint64(0)
-	for _, e := range calcOutputs.Earnings {
-		total += e.Value.Assets[program.EmittedAsset].Uint64()
-	}
-	if total == 0 {
-		assert.Empty(t, calcOutputs.Earnings)
-	} else {
-		assert.Equal(t, total, program.DailyEmission)
-	}
+	return program, CalculateEarnings(now, program, positions, pools)
 }
