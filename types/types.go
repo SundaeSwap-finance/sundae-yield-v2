@@ -35,6 +35,7 @@ type Pool struct {
 }
 
 type Delegation struct {
+	Program   string
 	PoolIdent string
 	Weight    uint32
 }

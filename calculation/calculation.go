@@ -20,6 +20,10 @@ func CalculateTotalDelegations(program types.Program, positions []types.Position
 		// Each UTXO of locked SUNDAE may encode a weighting for a set of pools, as described above;
 		totalWeight := uint64(0)
 		for _, w := range position.Delegation {
+			// Skip delegations for other programs
+			if w.Program != program.ID {
+				continue
+			}
 			totalWeight += uint64(w.Weight)
 		}
 		// The absence of such a list will exclude all SUNDAE at that UTXO from consideration.
@@ -31,6 +35,10 @@ func CalculateTotalDelegations(program types.Program, positions []types.Position
 		// ... then divide the SUNDAE at the UTXO among the selected options in accordance to the weight
 		delegatedAssetAmount := uint64(0)
 		for _, delegation := range position.Delegation {
+			// Skip delegations for other programs
+			if delegation.Program != program.ID {
+				continue
+			}
 			// rounding down
 			frac := totalDelegationAsset.BigInt()
 			frac = frac.Mul(frac, big.NewInt(int64(delegation.Weight)))
@@ -46,10 +54,16 @@ func CalculateTotalDelegations(program types.Program, positions []types.Position
 		if remainder < 0 {
 			panic("allocated more sundae to a pool than in the stake position, somehow")
 		} else if remainder > 0 {
-			for i := 0; i < remainder; i++ {
-				delegation := position.Delegation[i%len(position.Delegation)]
+			for i := 0; remainder > 0; i++ {
+				idx := i % len(position.Delegation)
+				// Skip over delegations for other programs
+				if position.Delegation[idx].Program != program.ID {
+					continue
+				}
+				delegation := position.Delegation[idx]
 				totalDelegationsByPoolIdent[delegation.PoolIdent] += 1
 				delegatedAssetAmount += 1
+				remainder -= 1
 			}
 		}
 		if totalDelegationAsset.Uint64() != delegatedAssetAmount {

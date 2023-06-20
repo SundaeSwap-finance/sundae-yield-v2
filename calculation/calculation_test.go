@@ -14,6 +14,7 @@ import (
 
 func sampleProgram(emissions uint64) types.Program {
 	return types.Program{
+		ID:                  "Test",
 		FirstDailyRewards:   "2001-01-01",
 		LastDailyRewards:    "2099-01-01", // If this code is still in use in 2099, call the police (after updating tests)
 		StakedAsset:         chainsync.AssetID("Staked"),
@@ -40,7 +41,7 @@ func Test_TotalDelegations(t *testing.T) {
 
 	// The simplest case
 	positions := []types.Position{
-		samplePosition(100_000, types.Delegation{PoolIdent: "01", Weight: 1}),
+		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}),
 	}
 	totalDelegations := CalculateTotalDelegations(program, positions)
 	assert.EqualValues(t, 100_000, totalDelegations["01"])
@@ -53,7 +54,7 @@ func Test_TotalDelegations(t *testing.T) {
 
 	// Should split evenly between delegations
 	positions = []types.Position{
-		samplePosition(100_000, types.Delegation{PoolIdent: "01", Weight: 1}, types.Delegation{PoolIdent: "02", Weight: 1}),
+		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 	}
 	totalDelegations = CalculateTotalDelegations(program, positions)
 	assert.EqualValues(t, 50_000, totalDelegations["01"])
@@ -61,7 +62,7 @@ func Test_TotalDelegations(t *testing.T) {
 
 	// Should handle bankers rounding
 	positions = []types.Position{
-		samplePosition(100_000, types.Delegation{PoolIdent: "01", Weight: 1}, types.Delegation{PoolIdent: "02", Weight: 2}),
+		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 2}),
 	}
 	totalDelegations = CalculateTotalDelegations(program, positions)
 	assert.EqualValues(t, 33_334, totalDelegations["01"])
@@ -69,14 +70,23 @@ func Test_TotalDelegations(t *testing.T) {
 
 	// Should handle multiple positions
 	positions = []types.Position{
-		samplePosition(100_000, types.Delegation{PoolIdent: "01", Weight: 1}, types.Delegation{PoolIdent: "02", Weight: 1}),
-		samplePosition(200_000, types.Delegation{PoolIdent: "02", Weight: 1}, types.Delegation{PoolIdent: "03", Weight: 1}),
+		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		samplePosition(200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
 	}
 	totalDelegations = CalculateTotalDelegations(program, positions)
 	assert.EqualValues(t, 50_000, totalDelegations["01"])
 	assert.EqualValues(t, 150_000, totalDelegations["02"])
 	assert.EqualValues(t, 100_000, totalDelegations["03"])
 
+	// Should handle delegations to multiple programs
+	positions = []types.Position{
+		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: "OTHER_PROGRAM", PoolIdent: "99", Weight: 100}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		samplePosition(200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
+	}
+	totalDelegations = CalculateTotalDelegations(program, positions)
+	assert.EqualValues(t, 50_000, totalDelegations["01"])
+	assert.EqualValues(t, 150_000, totalDelegations["02"])
+	assert.EqualValues(t, 100_000, totalDelegations["03"])
 }
 
 func Test_SummationConstraint(t *testing.T) {
@@ -327,8 +337,8 @@ func Test_EmissionsToEarnings(t *testing.T) {
 		"C": ownerC,
 	})
 	assert.EqualValues(t, []types.Earning{
-		{OwnerID: "A", Owner: ownerA, EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1000)}}},
-		{OwnerID: "B", Owner: ownerB, EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1500)}}},
+		{OwnerID: "A", Program: program.ID, Owner: ownerA, EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1000)}}},
+		{OwnerID: "B", Program: program.ID, Owner: ownerB, EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1500)}}},
 	}, emissions)
 }
 
@@ -377,11 +387,16 @@ func Random_Calc_Earnings(numPositions, numOwners, numPools int) (types.Program,
 				},
 			},
 		}
-		numDelegations := rand.Intn(30)
+		numDelegations := rand.Intn(40)
 		for j := 0; j < numDelegations; j++ {
 			poolIdent := fmt.Sprintf("Pool_%v", rand.Intn(numPools))
 			weight := uint32(rand.Intn(50_000))
-			position.Delegation = append(position.Delegation, types.Delegation{PoolIdent: poolIdent, Weight: weight})
+			forProgram := rand.Int()%4 < 3
+			if forProgram {
+				position.Delegation = append(position.Delegation, types.Delegation{Program: program.ID, PoolIdent: poolIdent, Weight: weight})
+			} else {
+				position.Delegation = append(position.Delegation, types.Delegation{Program: "OTHER PROGRAM", PoolIdent: poolIdent, Weight: weight})
+			}
 		}
 
 		numLP := rand.Intn(15)

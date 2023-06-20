@@ -60,6 +60,7 @@ if(!flags.dry) {
   console.log(`Waiting for tx ${txUnlock}...`);
   await lucid.awaitTx(txUnlock);
 }
+
 async function readValidator(): Promise<SpendingValidator> {
   const validator = JSON.parse(await Deno.readTextFile("../contracts/freezer/plutus.json")).validators[0];
   return {
