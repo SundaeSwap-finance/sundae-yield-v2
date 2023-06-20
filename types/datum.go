@@ -29,6 +29,7 @@ func (s *StakeDatum) UnmarshalCBOR(bytes []byte) error {
 	for _, rawDelegation := range intermediate.Delegations {
 		var delegation struct {
 			_         struct{} `cbor:",toarray"`
+			Program   []byte
 			PoolIdent []byte
 			Weight    uint32
 		}
@@ -36,6 +37,7 @@ func (s *StakeDatum) UnmarshalCBOR(bytes []byte) error {
 			return err
 		}
 		s.Delegations = append(s.Delegations, Delegation{
+			Program:   string(delegation.Program),
 			PoolIdent: hex.EncodeToString(delegation.PoolIdent),
 			Weight:    delegation.Weight,
 		})
