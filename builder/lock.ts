@@ -2,6 +2,7 @@ import { Lucid, Blockfrost, SpendingValidator, toHex, fromHex, Data, Constr, TxH
 import * as cbor from "https://deno.land/x/cbor@v1.4.1/index.js";
 import { parse } from "https://deno.land/std@0.184.0/flags/mod.ts";
 import { Buffer } from "https://deno.land/std@0.184.0/io/buffer.ts"
+import { encode, decode } from "https://deno.land/std@0.184.0/encoding/hex.ts"
 
 const flags = parse(Deno.args, {
   boolean: ["help", "dry", "list-utxos"],
@@ -49,9 +50,10 @@ const delegations: Data = [];
 for(const delegation of (flags.delegation || [])) {
   const parts = (delegation as string).split(" ")
   delegations.push(new Constr(1, [
-    Buffer.from(parts[0]).toString('hex'),
+    // ew, deno...
+    new TextDecoder().decode(encode(new TextEncoder().encode(parts[0]))),
     parts[1],
-    BigInt(parts[1])
+    BigInt(parts[2])
   ]))
 }
 
