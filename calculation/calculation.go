@@ -12,10 +12,31 @@ import (
 )
 
 // Calculate the total amount of sundae delegated to each pool, according to each users chosen "weighting"
-func CalculateTotalDelegations(program types.Program, positions []types.Position) map[string]uint64 {
+func CalculateTotalDelegations(program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) map[string]uint64 {
 	totalDelegationsByPoolIdent := map[string]uint64{}
 	for _, position := range positions {
 		totalDelegationAsset := position.Value.Assets[program.StakedAsset]
+
+		poolsByLPToken := map[chainsync.AssetID]types.Pool{}
+		for _, pool := range poolsByIdent {
+			poolsByLPToken[pool.LPAsset] = pool
+		}
+
+		// Add in the value of LP tokens, according to the ratio of the pools at the snapshot
+		for assetId, amt := range position.Value.Assets {
+			if pool, ok := poolsByLPToken[assetId]; ok {
+				if pool.AssetA == program.StakedAsset || pool.AssetB == program.StakedAsset {
+					frac := big.NewInt(amt.Int64())
+					if pool.AssetA == program.StakedAsset {
+						frac = frac.Mul(frac, big.NewInt(int64(pool.AssetAQuantity)))
+					} else if pool.AssetB == program.StakedAsset {
+						frac = frac.Mul(frac, big.NewInt(int64(pool.AssetBQuantity)))
+					}
+					frac = frac.Div(frac, big.NewInt(int64(pool.TotalLPTokens)))
+					totalDelegationAsset = totalDelegationAsset.Add(num.Int(*frac))
+				}
+			}
+		}
 
 		// Each UTXO of locked SUNDAE may encode a weighting for a set of pools, as described above;
 		totalWeight := uint64(0)
@@ -40,7 +61,7 @@ func CalculateTotalDelegations(program types.Program, positions []types.Position
 				continue
 			}
 			// rounding down
-			frac := totalDelegationAsset.BigInt()
+			frac := big.NewInt(totalDelegationAsset.Int64())
 			frac = frac.Mul(frac, big.NewInt(int64(delegation.Weight)))
 			frac = frac.Div(frac, num.Uint64(totalWeight).BigInt())
 			allocation := frac.Uint64()
@@ -52,7 +73,7 @@ func CalculateTotalDelegations(program types.Program, positions []types.Position
 		// Note: this is guaranteed to be small because of high precision arithmetic above
 		remainder := int(totalDelegationAsset.Uint64() - delegatedAssetAmount)
 		if remainder < 0 {
-			panic("allocated more sundae to a pool than in the stake position, somehow")
+			panic(fmt.Sprintf("allocated more asset (%v) to a pool than in the stake position (%v), somehow", delegatedAssetAmount, totalDelegationAsset))
 		} else if remainder > 0 {
 			for i := 0; remainder > 0; i++ {
 				idx := i % len(position.Delegation)
@@ -187,9 +208,13 @@ func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsBy
 		totalWeight += weight
 		poolWeights = append(poolWeights, Pairs{PoolIdent: poolIdent, Amount: weight})
 	}
-
+	// No pool has received weight
 	// We then divide the daily emissions among these pools in proportion to their weight, rounding down
 	emissionsByPool := map[string]uint64{}
+	if totalWeight == 0 {
+		return emissionsByPool
+	}
+
 	allocatedAmount := uint64(0)
 	for poolIdent, weight := range poolsReceivingEmissionsByIdent {
 		frac := big.NewInt(0).SetUint64(program.DailyEmission)
@@ -377,7 +402,7 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 
 	// To calculate the daily emissions, ... first take inventory of SUNDAE held at the Locking Contract
 	// and factory in the users delegation
-	delegationByPool := CalculateTotalDelegations(program, positions)
+	delegationByPool := CalculateTotalDelegations(program, positions, poolsByIdent)
 	qualifyingDelegationsPerPool := map[string]uint64{}
 	// Any pool that has less than 1% of the pools LP tokens held at the Locking Contract
 	// will be considered an abstention and will not be eligible for rewards.

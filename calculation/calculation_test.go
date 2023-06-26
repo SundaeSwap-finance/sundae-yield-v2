@@ -43,20 +43,20 @@ func Test_TotalDelegations(t *testing.T) {
 	positions := []types.Position{
 		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}),
 	}
-	totalDelegations := CalculateTotalDelegations(program, positions)
+	totalDelegations := CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 100_000, totalDelegations["01"])
 
 	positions = []types.Position{
 		samplePosition(100_000),
 	}
-	totalDelegations = CalculateTotalDelegations(program, positions)
+	totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 100_000, totalDelegations[""])
 
 	// Should split evenly between delegations
 	positions = []types.Position{
 		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 	}
-	totalDelegations = CalculateTotalDelegations(program, positions)
+	totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 50_000, totalDelegations["01"])
 	assert.EqualValues(t, 50_000, totalDelegations["02"])
 
@@ -64,7 +64,7 @@ func Test_TotalDelegations(t *testing.T) {
 	positions = []types.Position{
 		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 2}),
 	}
-	totalDelegations = CalculateTotalDelegations(program, positions)
+	totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 33_334, totalDelegations["01"])
 	assert.EqualValues(t, 66_666, totalDelegations["02"])
 
@@ -73,17 +73,39 @@ func Test_TotalDelegations(t *testing.T) {
 		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 		samplePosition(200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
 	}
-	totalDelegations = CalculateTotalDelegations(program, positions)
+	totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 50_000, totalDelegations["01"])
 	assert.EqualValues(t, 150_000, totalDelegations["02"])
 	assert.EqualValues(t, 100_000, totalDelegations["03"])
 
+	// Should handle positions with LP tokens
+	pools := map[string]types.Pool{
+		"01": {
+			PoolIdent:      "01",
+			TotalLPTokens:  100_000,
+			LPAsset:        "LP",
+			AssetA:         "",
+			AssetB:         program.StakedAsset,
+			AssetAQuantity: 200_000,
+			AssetBQuantity: 100_000,
+		},
+	}
+	positions = []types.Position{
+		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+	}
+	positions[0].Value.Assets["LP"] = num.Int64(50_000)
+	totalDelegations = CalculateTotalDelegations(program, positions, pools)
+	assert.EqualValues(t, 75_000, totalDelegations["01"])
+	assert.EqualValues(t, 75_000, totalDelegations["02"])
+
 	// Should handle delegations to multiple programs
+
 	positions = []types.Position{
 		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: "OTHER_PROGRAM", PoolIdent: "99", Weight: 100}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 		samplePosition(200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
 	}
-	totalDelegations = CalculateTotalDelegations(program, positions)
+
+	totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 50_000, totalDelegations["01"])
 	assert.EqualValues(t, 150_000, totalDelegations["02"])
 	assert.EqualValues(t, 100_000, totalDelegations["03"])
@@ -104,7 +126,7 @@ func Test_SummationConstraint(t *testing.T) {
 	positions := []types.Position{
 		samplePosition(initialSundae, delegations...),
 	}
-	totalDelegations := CalculateTotalDelegations(program, positions)
+	totalDelegations := CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	actualSum := uint64(0)
 	for _, s := range totalDelegations {
 		actualSum += s

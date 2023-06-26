@@ -29,9 +29,13 @@ type Program struct {
 }
 
 type Pool struct {
-	PoolIdent     string
-	TotalLPTokens uint64
-	LPAsset       chainsync.AssetID
+	PoolIdent      string
+	TotalLPTokens  uint64
+	LPAsset        chainsync.AssetID
+	AssetA         chainsync.AssetID
+	AssetAQuantity uint64
+	AssetB         chainsync.AssetID
+	AssetBQuantity uint64
 }
 
 type Delegation struct {
