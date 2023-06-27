@@ -13,6 +13,7 @@ type StakeDatum {
 
 // NOTE: Unused, but this is the type we intend to store in Data above
 type Delegation {
+  program: String,
   pool_ident: ByteArray,
   weight: Int,
 }

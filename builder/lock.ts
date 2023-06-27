@@ -1,8 +1,7 @@
 import { Lucid, Blockfrost, SpendingValidator, toHex, fromHex, Data, Constr, TxHash, Script, Assets } from "https://deno.land/x/lucid@0.10.6/mod.ts";
 import * as cbor from "https://deno.land/x/cbor@v1.4.1/index.js";
 import { parse } from "https://deno.land/std@0.184.0/flags/mod.ts";
-import { Buffer } from "https://deno.land/std@0.184.0/io/buffer.ts"
-import { encode, decode } from "https://deno.land/std@0.184.0/encoding/hex.ts"
+import { encode } from "https://deno.land/std@0.184.0/encoding/hex.ts"
 
 const flags = parse(Deno.args, {
   boolean: ["help", "dry", "list-utxos"],
