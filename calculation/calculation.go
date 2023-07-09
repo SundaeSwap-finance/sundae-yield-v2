@@ -402,6 +402,8 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 }
 
 type CalculationOutputs struct {
+	Timestamp string
+
 	TotalDelegations uint64
 	DelegationByPool map[string]uint64
 
@@ -451,7 +453,18 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 
 	// If no pools are qualified (extremely degenerate case, return no earnings, and reserve those tokens for the treasury)
 	if _, ok := delegationByPool[""]; len(delegationByPool) == 0 || (ok && len(delegationByPool) == 1) {
-		return CalculationOutputs{DelegationByPool: delegationByPool, QualifyingDelegationByPool: qualifyingDelegationsPerPool, LockedLPByPool: lockedLPByPool}
+		return CalculationOutputs{
+			Timestamp:                     time.Now().Format(time.RFC3339),
+			TotalDelegations:              totalDelegation,
+			DelegationByPool:              delegationByPool,
+			QualifyingDelegationByPool:    qualifyingDelegationsPerPool,
+			PoolDisqualificationReasons:   poolDisqualificationReasons,
+			LockedLPByPool:                lockedLPByPool,
+			TotalLPByPool:                 totalLPByPool,
+			EstimatedLockedADAValue:       totalEstimatedValue,
+			EstimatedLockedADAValueByPool: estimatedValue,
+		}
+
 	}
 
 	// The top pools ... will be eligible for yield farming rewards that day.
@@ -474,6 +487,8 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 	// we return a set of "earnings" for the day
 	earnings := EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID)
 	return CalculationOutputs{
+		Timestamp: time.Now().Format(time.RFC3339),
+
 		TotalDelegations: totalDelegation,
 		DelegationByPool: delegationByPool,
 
