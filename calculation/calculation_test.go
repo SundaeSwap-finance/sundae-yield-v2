@@ -191,9 +191,11 @@ func Test_CalculateTotalLP(t *testing.T) {
 		"X": {PoolIdent: "X", LPAsset: "LP_X", TotalLPTokens: 500, AssetAQuantity: 1000},
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y", TotalLPTokens: 1000, AssetAQuantity: 100},
 	}
-	totalLP, totalValueByPool, totalValue := CalculateTotalLP(positions, pools)
-	assert.EqualValues(t, 300, totalLP["X"])
-	assert.EqualValues(t, 500, totalLP["Y"])
+	lockedLP, totalLP, totalValueByPool, totalValue := CalculateTotalLP(positions, pools)
+	assert.EqualValues(t, 300, lockedLP["X"])
+	assert.EqualValues(t, 500, lockedLP["Y"])
+	assert.EqualValues(t, 500, totalLP["X"])
+	assert.EqualValues(t, 1000, totalLP["Y"])
 	assert.EqualValues(t, 1200, totalValueByPool["X"])
 	assert.EqualValues(t, 100, totalValueByPool["Y"])
 	assert.EqualValues(t, 1300, totalValue)
