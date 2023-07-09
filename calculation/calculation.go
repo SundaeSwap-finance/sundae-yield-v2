@@ -416,6 +416,7 @@ type CalculationOutputs struct {
 	EstimatedLockedADAValue       uint64
 	EstimatedLockedADAValueByPool map[string]uint64
 
+	TotalEmissions   uint64
 	EmissionsByPool  map[string]uint64
 	EmissionsByOwner map[string]uint64
 
@@ -501,6 +502,7 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 		EstimatedLockedADAValue:       totalEstimatedValue,
 		EstimatedLockedADAValueByPool: estimatedValue,
 
+		TotalEmissions:   program.DailyEmission,
 		EmissionsByPool:  RegroupByPool(emissionsByAsset, poolsByIdent),
 		EmissionsByOwner: emissionsByOwner,
 
