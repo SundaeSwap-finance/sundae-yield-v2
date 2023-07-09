@@ -14,6 +14,13 @@ import (
 // Calculate the total amount of sundae delegated to each pool, according to each users chosen "weighting"
 func CalculateTotalDelegations(program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) (map[string]uint64, uint64) {
 	totalDelegationsByPoolIdent := map[string]uint64{}
+	if program.StakedAsset == "" {
+		for _, pool := range program.EligiblePools {
+			totalDelegationsByPoolIdent[pool] = 1
+		}
+		return totalDelegationsByPoolIdent, uint64(len(program.EligiblePools))
+	}
+
 	for _, position := range positions {
 		totalDelegationAsset := position.Value.Assets[program.StakedAsset]
 
