@@ -413,8 +413,8 @@ type CalculationOutputs struct {
 	LockedLPByPool map[string]uint64
 	TotalLPByPool  map[string]uint64
 
-	EstimatedLockedADAValue       uint64
-	EstimatedLockedADAValueByPool map[string]uint64
+	EstimatedLockedLovelace       uint64
+	EstimatedLockedLovelaceByPool map[string]uint64
 
 	TotalEmissions   uint64
 	EmissionsByPool  map[string]uint64
@@ -462,8 +462,8 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 			PoolDisqualificationReasons:   poolDisqualificationReasons,
 			LockedLPByPool:                lockedLPByPool,
 			TotalLPByPool:                 totalLPByPool,
-			EstimatedLockedADAValue:       totalEstimatedValue,
-			EstimatedLockedADAValueByPool: estimatedValue,
+			EstimatedLockedLovelace:       totalEstimatedValue,
+			EstimatedLockedLovelaceByPool: estimatedValue,
 		}
 
 	}
@@ -499,8 +499,8 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 		LockedLPByPool: lockedLPByPool,
 		TotalLPByPool:  totalLPByPool,
 
-		EstimatedLockedADAValue:       totalEstimatedValue,
-		EstimatedLockedADAValueByPool: estimatedValue,
+		EstimatedLockedLovelace:       totalEstimatedValue,
+		EstimatedLockedLovelaceByPool: estimatedValue,
 
 		TotalEmissions:   program.DailyEmission,
 		EmissionsByPool:  RegroupByPool(emissionsByAsset, poolsByIdent),
