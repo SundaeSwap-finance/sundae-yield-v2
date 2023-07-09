@@ -103,10 +103,8 @@ func CalculateTotalDelegations(program types.Program, positions []types.Position
 
 func CalculateTotalLP(positions []types.Position, poolsByIdent map[string]types.Pool) (map[string]uint64, map[string]uint64, map[string]uint64, uint64) {
 	poolsByLPToken := map[chainsync.AssetID]types.Pool{}
-	totalLPByIdent := map[string]uint64{}
 	for _, pool := range poolsByIdent {
 		poolsByLPToken[pool.LPAsset] = pool
-		totalLPByIdent[pool.PoolIdent] = pool.TotalLPTokens
 	}
 	lockedLPByIdent := map[string]uint64{}
 	valueByIdent := map[string]uint64{}
@@ -125,6 +123,10 @@ func CalculateTotalLP(positions []types.Position, poolsByIdent map[string]types.
 				}
 			}
 		}
+	}
+	totalLPByIdent := map[string]uint64{}
+	for pool := range lockedLPByIdent {
+		totalLPByIdent[pool] = poolsByIdent[pool].TotalLPTokens
 	}
 	return lockedLPByIdent, totalLPByIdent, valueByIdent, totalValue
 }
