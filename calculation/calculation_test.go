@@ -43,40 +43,45 @@ func Test_TotalDelegations(t *testing.T) {
 	positions := []types.Position{
 		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}),
 	}
-	totalDelegations := CalculateTotalDelegations(program, positions, map[string]types.Pool{})
-	assert.EqualValues(t, 100_000, totalDelegations["01"])
+	delegationsByPool, totalDelegations := CalculateTotalDelegations(program, positions, map[string]types.Pool{})
+	assert.EqualValues(t, 100_000, delegationsByPool["01"])
+	assert.EqualValues(t, 100_000, totalDelegations)
 
 	positions = []types.Position{
 		samplePosition(100_000),
 	}
-	totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
-	assert.EqualValues(t, 100_000, totalDelegations[""])
+	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
+	assert.EqualValues(t, 100_000, delegationsByPool[""])
+	assert.EqualValues(t, 100_000, totalDelegations)
 
 	// Should split evenly between delegations
 	positions = []types.Position{
 		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 	}
-	totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
-	assert.EqualValues(t, 50_000, totalDelegations["01"])
-	assert.EqualValues(t, 50_000, totalDelegations["02"])
+	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
+	assert.EqualValues(t, 50_000, delegationsByPool["01"])
+	assert.EqualValues(t, 50_000, delegationsByPool["02"])
+	assert.EqualValues(t, 100_000, totalDelegations)
 
 	// Should handle bankers rounding
 	positions = []types.Position{
 		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 2}),
 	}
-	totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
-	assert.EqualValues(t, 33_334, totalDelegations["01"])
-	assert.EqualValues(t, 66_666, totalDelegations["02"])
+	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
+	assert.EqualValues(t, 33_334, delegationsByPool["01"])
+	assert.EqualValues(t, 66_666, delegationsByPool["02"])
+	assert.EqualValues(t, 100_000, totalDelegations)
 
 	// Should handle multiple positions
 	positions = []types.Position{
 		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 		samplePosition(200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
 	}
-	totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
-	assert.EqualValues(t, 50_000, totalDelegations["01"])
-	assert.EqualValues(t, 150_000, totalDelegations["02"])
-	assert.EqualValues(t, 100_000, totalDelegations["03"])
+	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
+	assert.EqualValues(t, 50_000, delegationsByPool["01"])
+	assert.EqualValues(t, 150_000, delegationsByPool["02"])
+	assert.EqualValues(t, 100_000, delegationsByPool["03"])
+	assert.EqualValues(t, 300_000, totalDelegations)
 
 	// Should handle positions with LP tokens
 	pools := map[string]types.Pool{
@@ -94,9 +99,10 @@ func Test_TotalDelegations(t *testing.T) {
 		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 	}
 	positions[0].Value.Assets["LP"] = num.Int64(50_000)
-	totalDelegations = CalculateTotalDelegations(program, positions, pools)
-	assert.EqualValues(t, 75_000, totalDelegations["01"])
-	assert.EqualValues(t, 75_000, totalDelegations["02"])
+	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, pools)
+	assert.EqualValues(t, 75_000, delegationsByPool["01"])
+	assert.EqualValues(t, 75_000, delegationsByPool["02"])
+	assert.EqualValues(t, 150_000, totalDelegations)
 
 	// Should handle delegations to multiple programs
 
@@ -105,10 +111,11 @@ func Test_TotalDelegations(t *testing.T) {
 		samplePosition(200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
 	}
 
-	totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
-	assert.EqualValues(t, 50_000, totalDelegations["01"])
-	assert.EqualValues(t, 150_000, totalDelegations["02"])
-	assert.EqualValues(t, 100_000, totalDelegations["03"])
+	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
+	assert.EqualValues(t, 50_000, delegationsByPool["01"])
+	assert.EqualValues(t, 150_000, delegationsByPool["02"])
+	assert.EqualValues(t, 100_000, delegationsByPool["03"])
+	assert.EqualValues(t, 300_000, totalDelegations)
 }
 
 func Test_SummationConstraint(t *testing.T) {
@@ -126,12 +133,13 @@ func Test_SummationConstraint(t *testing.T) {
 	positions := []types.Position{
 		samplePosition(initialSundae, delegations...),
 	}
-	totalDelegations := CalculateTotalDelegations(program, positions, map[string]types.Pool{})
+	delegationsByPool, totalDelegation := CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	actualSum := uint64(0)
-	for _, s := range totalDelegations {
+	for _, s := range delegationsByPool {
 		actualSum += s
 	}
 	assert.EqualValues(t, initialSundae, actualSum)
+	assert.EqualValues(t, totalDelegation, actualSum)
 }
 
 func Test_AtLeastOnePercent(t *testing.T) {
@@ -171,6 +179,24 @@ func Test_QualifiedPools(t *testing.T) {
 	assert.False(t, qualified)
 	qualified, _ = isPoolQualified(program, poolB, 500)
 	assert.True(t, qualified)
+}
+
+func Test_CalculateTotalLP(t *testing.T) {
+	positions := []types.Position{
+		{OwnerID: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
+		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200)}}},
+		{OwnerID: "C", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_Y": num.Uint64(500)}}},
+	}
+	pools := map[string]types.Pool{
+		"X": {PoolIdent: "X", LPAsset: "LP_X", TotalLPTokens: 500, AssetAQuantity: 1000},
+		"Y": {PoolIdent: "Y", LPAsset: "LP_Y", TotalLPTokens: 1000, AssetAQuantity: 100},
+	}
+	totalLP, totalValueByPool, totalValue := CalculateTotalLP(positions, pools)
+	assert.EqualValues(t, 300, totalLP["X"])
+	assert.EqualValues(t, 500, totalLP["Y"])
+	assert.EqualValues(t, 1200, totalValueByPool["X"])
+	assert.EqualValues(t, 100, totalValueByPool["Y"])
+	assert.EqualValues(t, 1300, totalValue)
 }
 
 func Test_PoolForEmissions(t *testing.T) {

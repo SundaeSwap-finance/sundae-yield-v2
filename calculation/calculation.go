@@ -12,7 +12,7 @@ import (
 )
 
 // Calculate the total amount of sundae delegated to each pool, according to each users chosen "weighting"
-func CalculateTotalDelegations(program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) map[string]uint64 {
+func CalculateTotalDelegations(program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) (map[string]uint64, uint64) {
 	totalDelegationsByPoolIdent := map[string]uint64{}
 	for _, position := range positions {
 		totalDelegationAsset := position.Value.Assets[program.StakedAsset]
@@ -92,23 +92,39 @@ func CalculateTotalDelegations(program types.Program, positions []types.Position
 			panic("round-robin distribution wasn't succesful")
 		}
 	}
-	return totalDelegationsByPoolIdent
+
+	totalDelegations := uint64(0)
+	for _, amt := range totalDelegationsByPoolIdent {
+		totalDelegations += amt
+	}
+
+	return totalDelegationsByPoolIdent, totalDelegations
 }
 
-func CalculateTotalLP(positions []types.Position, poolsByIdent map[string]types.Pool) map[string]uint64 {
+func CalculateTotalLP(positions []types.Position, poolsByIdent map[string]types.Pool) (map[string]uint64, map[string]uint64, uint64) {
 	poolsByLPToken := map[chainsync.AssetID]types.Pool{}
 	for _, pool := range poolsByIdent {
 		poolsByLPToken[pool.LPAsset] = pool
 	}
 	lpsByIdent := map[string]uint64{}
+	valueByIdent := map[string]uint64{}
+	totalValue := uint64(0)
 	for _, position := range positions {
 		for assetId, amount := range position.Value.Assets {
 			if pool, ok := poolsByLPToken[assetId]; ok {
 				lpsByIdent[pool.PoolIdent] += amount.Uint64()
+				if pool.AssetA == "" {
+					lockedLP := amount.BigInt()
+					totalLP := num.Uint64(pool.TotalLPTokens).BigInt()
+					numerator := big.NewInt(0).Mul(lockedLP, num.Uint64(pool.AssetAQuantity).BigInt())
+					assetA := big.NewInt(0).Div(numerator, totalLP)
+					valueByIdent[pool.PoolIdent] += assetA.Uint64() * 2
+					totalValue += assetA.Uint64() * 2
+				}
 			}
 		}
 	}
-	return lpsByIdent
+	return lpsByIdent, valueByIdent, totalValue
 }
 
 // Check, that `portion“ is at least `percent` of `total“
@@ -382,13 +398,16 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 }
 
 type CalculationOutputs struct {
-	DelegationByPool            map[string]uint64
-	QualifyingDelegationByPool  map[string]uint64
-	PoolDisqualificationReasons map[string]string
-	LockedLPByPool              map[string]uint64
-	EmissionsByPool             map[string]uint64
-	EmissionsByOwner            map[string]uint64
-	Earnings                    []types.Earning
+	TotalDelegations              uint64
+	DelegationByPool              map[string]uint64
+	QualifyingDelegationByPool    map[string]uint64
+	PoolDisqualificationReasons   map[string]string
+	LockedLPByPool                map[string]uint64
+	EstimatedLockedADAValue       uint64
+	EstimatedLockedADAValueByPool map[string]uint64
+	EmissionsByPool               map[string]uint64
+	EmissionsByOwner              map[string]uint64
+	Earnings                      []types.Earning
 }
 
 func CalculateEarnings(date types.Date, program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) CalculationOutputs {
@@ -402,11 +421,11 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 
 	// To calculate the daily emissions, ... first take inventory of SUNDAE held at the Locking Contract
 	// and factory in the users delegation
-	delegationByPool := CalculateTotalDelegations(program, positions, poolsByIdent)
+	delegationByPool, totalDelegation := CalculateTotalDelegations(program, positions, poolsByIdent)
 	qualifyingDelegationsPerPool := map[string]uint64{}
 	// Any pool that has less than 1% of the pools LP tokens held at the Locking Contract
 	// will be considered an abstention and will not be eligible for rewards.
-	totalLockedLPTokens := CalculateTotalLP(positions, poolsByIdent)
+	totalLockedLPTokens, estimatedValue, totalEstimatedValue := CalculateTotalLP(positions, poolsByIdent)
 	poolDisqualificationReasons := map[string]string{}
 	for poolIdent, locked := range totalLockedLPTokens {
 		qualified, reason := isPoolQualified(program, poolsByIdent[poolIdent], locked)
@@ -445,12 +464,15 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 	// we return a set of "earnings" for the day
 	earnings := EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID)
 	return CalculationOutputs{
-		DelegationByPool:            delegationByPool,
-		QualifyingDelegationByPool:  qualifyingDelegationsPerPool,
-		PoolDisqualificationReasons: poolDisqualificationReasons,
-		LockedLPByPool:              totalLockedLPTokens,
-		EmissionsByPool:             RegroupByPool(emissionsByAsset, poolsByIdent),
-		EmissionsByOwner:            emissionsByOwner,
-		Earnings:                    earnings,
+		TotalDelegations:              totalDelegation,
+		DelegationByPool:              delegationByPool,
+		QualifyingDelegationByPool:    qualifyingDelegationsPerPool,
+		PoolDisqualificationReasons:   poolDisqualificationReasons,
+		LockedLPByPool:                totalLockedLPTokens,
+		EstimatedLockedADAValue:       totalEstimatedValue,
+		EstimatedLockedADAValueByPool: estimatedValue,
+		EmissionsByPool:               RegroupByPool(emissionsByAsset, poolsByIdent),
+		EmissionsByOwner:              emissionsByOwner,
+		Earnings:                      earnings,
 	}
 }
