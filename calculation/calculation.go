@@ -423,9 +423,13 @@ type CalculationOutputs struct {
 	EstimatedLockedLovelace       uint64
 	EstimatedLockedLovelaceByPool map[string]uint64
 
-	TotalEmissions   uint64
-	EmissionsByPool  map[string]uint64
+	TotalEmissions  uint64
+	EmissionsByPool map[string]uint64
+
 	EmissionsByOwner map[string]uint64
+
+	EstimatedEmissionsLovelaceValue  uint64
+	EstimatedEmissionsLovelaceByPool map[string]uint64
 
 	Earnings []types.Earning
 }
@@ -472,7 +476,6 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 			EstimatedLockedLovelace:       totalEstimatedValue,
 			EstimatedLockedLovelaceByPool: estimatedValue,
 		}
-
 	}
 
 	// The top pools ... will be eligible for yield farming rewards that day.
@@ -489,6 +492,21 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 	ownersByID := map[string]types.MultisigScript{}
 	for _, position := range positions {
 		ownersByID[position.OwnerID] = position.Owner
+	}
+
+	// Find the pool that we should use for price reference, so we can estimate the ADA value of what was emitted
+	emissionsByPool := RegroupByPool(emissionsByAsset, poolsByIdent)
+	var emittedLovelaceValue uint64
+	emittedLovelaceValueByPool := map[string]uint64{}
+	referencePool, found := poolsByIdent[program.ReferencePool]
+	if found {
+		for ident, sundae := range emissionsByPool {
+			// NOTE: assuming AssetA is ADA
+			estimatedNumerator := big.NewInt(0).Mul(big.NewInt(int64(sundae)), big.NewInt(int64(referencePool.AssetAQuantity)))
+			estimatedLovelaceValue := big.NewInt(0).Div(estimatedNumerator, big.NewInt(int64(referencePool.AssetBQuantity)))
+			emittedLovelaceValue += estimatedLovelaceValue.Uint64()
+			emittedLovelaceValueByPool[ident] += estimatedLovelaceValue.Uint64()
+		}
 	}
 
 	// Users will be able to claim these emitted tokens
@@ -509,9 +527,13 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 		EstimatedLockedLovelace:       totalEstimatedValue,
 		EstimatedLockedLovelaceByPool: estimatedValue,
 
-		TotalEmissions:   program.DailyEmission,
-		EmissionsByPool:  RegroupByPool(emissionsByAsset, poolsByIdent),
+		TotalEmissions:  program.DailyEmission,
+		EmissionsByPool: emissionsByPool,
+
 		EmissionsByOwner: emissionsByOwner,
+
+		EstimatedEmissionsLovelaceValue:  emittedLovelaceValue,
+		EstimatedEmissionsLovelaceByPool: emittedLovelaceValueByPool,
 
 		Earnings: earnings,
 	}

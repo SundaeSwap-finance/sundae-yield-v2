@@ -17,6 +17,7 @@ type Program struct {
 	DailyEmission uint64 // TODO: generalize to asset?
 	EmittedAsset  chainsync.AssetID
 	StakedAsset   chainsync.AssetID
+	ReferencePool string // Which pool should we use as a reference when estimating locked value?
 
 	EarningExpiration *time.Duration
 
