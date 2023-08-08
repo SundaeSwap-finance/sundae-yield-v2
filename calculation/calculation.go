@@ -202,12 +202,27 @@ func SelectPoolsForEmission(program types.Program, delegationsByPool map[string]
 		return candidates[i].Total > candidates[j].Total
 	})
 
-	// Then select either the top N pools, or the top covering percent,
-	// whichever is fewer
 	poolsReceivingEmissionsByIdent := map[string]uint64{}
 	totalQualifyingDelegation := uint64(0)
+
+	// Ensure the nepotism pools (like ADA/SUNDAE) are always selected for emissions
+	for _, pool := range program.NepotismPools {
+		for _, delegation := range candidates {
+			if delegation.PoolIdent == pool {
+				poolsReceivingEmissionsByIdent[pool] = delegation.Total
+				totalQualifyingDelegation += delegation.Total
+			}
+		}
+	}
+
+	// Then select either the top N pools, or the top covering percent,
+	// whichever is fewer
 	for _, delegation := range candidates {
 		if delegation.PoolIdent == "" {
+			continue
+		}
+		// Don't re-add any nepotistic pools
+		if _, ok := poolsReceivingEmissionsByIdent[delegation.PoolIdent]; ok {
 			continue
 		}
 		poolsReceivingEmissionsByIdent[delegation.PoolIdent] = delegation.Total

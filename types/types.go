@@ -23,6 +23,7 @@ type Program struct {
 
 	EligiblePools     []string
 	DisqualifiedPools []string
+	NepotismPools     []string
 
 	MinLPIntegerPercent   int
 	MaxPoolCount          int

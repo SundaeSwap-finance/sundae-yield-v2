@@ -234,6 +234,20 @@ func Test_PoolForEmissions(t *testing.T) {
 	assert.EqualValues(t, map[string]uint64{"F": 601, "E": 500, "D": 400, "C": 300, "B": 200}, selectedPools)
 }
 
+func Test_PoolsForEmissions_WithNepotism(t *testing.T) {
+	program := sampleProgram(500_000)
+	program.NepotismPools = []string{"B"}
+	program.MaxPoolCount = 2
+	program.MaxPoolIntegerPercent = 20
+	selectedPools := SelectPoolsForEmission(program, map[string]uint64{
+		"A": 50,
+		"B": 100,
+		"C": 200,
+		"D": 300,
+	}, nil)
+	assert.EqualValues(t, map[string]uint64{"D": 300, "B": 100}, selectedPools)
+}
+
 func Test_EmissionsToPools(t *testing.T) {
 	program := sampleProgram(500_000_000_000)
 	emissions := DistributeEmissionsToPools(program, map[string]uint64{
