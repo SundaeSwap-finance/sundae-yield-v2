@@ -383,13 +383,16 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 			for i := 0; i < remainder; i++ {
 				owner := ownerStakes[i%len(ownerStakes)]
 				m := emissionsByOwner[owner.OwnerID]
-				// Add one to the first entry in this owner map
-				// It doesn't matter which one we add it to
+				// Pick the min LP token assset ID to add one token to
+				// It doesn't actually matter which one we add it to, but this makes it determinsitic
+				minLP := ""
 				for asset := range m {
-					emissionsByOwner[owner.OwnerID][asset] += 1
-					allocatedAmount += 1
-					break
+					if minLP == "" || asset < minLP {
+						minLP = asset
+					}
 				}
+				emissionsByOwner[owner.OwnerID][minLP] += 1
+				allocatedAmount += 1
 			}
 			if emissionsByAsset[assetId] != allocatedAmount {
 				panic("round-robin distribution wasn't succesful")
