@@ -148,6 +148,7 @@ func Test_AtLeastOnePercent(t *testing.T) {
 	assert.False(t, atLeastIntegerPercent(149, 15000, 1))
 	assert.False(t, atLeastIntegerPercent(1499, 150000, 1))
 	assert.False(t, atLeastIntegerPercent(1234, 15000, 9))
+	assert.False(t, atLeastIntegerPercent(33698506090921, 42448490781434, 80))
 	assert.True(t, atLeastIntegerPercent(0, 15000, 0))
 	assert.True(t, atLeastIntegerPercent(150, 15000, 1))
 	assert.True(t, atLeastIntegerPercent(151, 15000, 1))
@@ -364,7 +365,7 @@ func Test_EmissionsToOwners(t *testing.T) {
 		"LP_X": 100,
 	}
 	emissionsByOwner := DistributeEmissionsToOwners(lpByOwners, emissionsByAsset, lpTokensByAsset)
-	assert.EqualValues(t, map[string]uint64{"A": 1000}, emissionsByOwner)
+	assert.EqualValues(t, map[string]map[string]uint64{"A": {"LP_X": 1000}}, emissionsByOwner)
 
 	lpByOwners = LPByOwners(
 		Alloc{"A", "LP_X", 100},
@@ -372,7 +373,7 @@ func Test_EmissionsToOwners(t *testing.T) {
 	)
 	lpTokensByAsset = map[chainsync.AssetID]uint64{"LP_X": 300}
 	emissionsByOwner = DistributeEmissionsToOwners(lpByOwners, emissionsByAsset, lpTokensByAsset)
-	assert.EqualValues(t, map[string]uint64{"A": 334, "B": 666}, emissionsByOwner)
+	assert.EqualValues(t, map[string]map[string]uint64{"A": {"LP_X": 334}, "B": {"LP_X": 666}}, emissionsByOwner)
 
 	lpByOwners = LPByOwners(
 		Alloc{"A", "LP_X", 100},
@@ -382,7 +383,11 @@ func Test_EmissionsToOwners(t *testing.T) {
 	emissionsByAsset = map[chainsync.AssetID]uint64{"LP_X": 1000, "LP_Y": 500}
 	lpTokensByAsset = map[chainsync.AssetID]uint64{"LP_X": 300, "LP_Y": 300}
 	emissionsByOwner = DistributeEmissionsToOwners(lpByOwners, emissionsByAsset, lpTokensByAsset)
-	assert.EqualValues(t, map[string]uint64{"A": 334 + 500, "B": 666}, emissionsByOwner)
+	assert.EqualValues(t, map[string]map[string]uint64{"A": {"LP_X": 334, "LP_Y": 500}, "B": {"LP_X": 666}}, emissionsByOwner)
+}
+
+func makeValue(token string, amt uint64) chainsync.Value {
+	return chainsync.Value{Assets: map[chainsync.AssetID]num.Int{chainsync.AssetID(token): num.Uint64(amt)}}
 }
 
 func Test_EmissionsToEarnings(t *testing.T) {
@@ -391,19 +396,38 @@ func Test_EmissionsToEarnings(t *testing.T) {
 	ownerA := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("A")}}
 	ownerB := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("B")}}
 	ownerC := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("B")}}
-	emissions := EmissionsByOwnerToEarnings(now, program, map[string]uint64{
-		"A": 1000,
-		"B": 1500,
-		"C": 0,
+	emissions, perOwnerTotal := EmissionsByOwnerToEarnings(now, program, map[string]map[string]uint64{
+		"A": {"LP_X": 900, "LP_Y": 100},
+		"B": {"LP_X": 1000, "LP_Y": 200, "LP_Z": 300},
+		"C": {},
 	}, map[string]types.MultisigScript{
 		"A": ownerA,
 		"B": ownerB,
 		"C": ownerC,
 	})
 	assert.EqualValues(t, []types.Earning{
-		{OwnerID: "A", Program: program.ID, Owner: ownerA, EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1000)}}},
-		{OwnerID: "B", Program: program.ID, Owner: ownerB, EarnedDate: now, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"Emitted": num.Uint64(1500)}}},
+		{
+			OwnerID: "A", Program: program.ID, Owner: ownerA, EarnedDate: now,
+			Value: makeValue("Emitted", 1000),
+			ValueByLPToken: map[string]chainsync.Value{
+				"LP_X": makeValue("Emitted", 900),
+				"LP_Y": makeValue("Emitted", 100),
+			},
+		},
+		{
+			OwnerID: "B", Program: program.ID, Owner: ownerB, EarnedDate: now,
+			Value: makeValue("Emitted", 1500),
+			ValueByLPToken: map[string]chainsync.Value{
+				"LP_X": makeValue("Emitted", 1000),
+				"LP_Y": makeValue("Emitted", 200),
+				"LP_Z": makeValue("Emitted", 300),
+			},
+		},
 	}, emissions)
+	assert.EqualValues(t, map[string]uint64{
+		"A": 1000,
+		"B": 1500,
+	}, perOwnerTotal)
 }
 
 func Test_Calculate_Earnings(t *testing.T) {

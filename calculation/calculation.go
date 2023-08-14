@@ -335,7 +335,7 @@ func RegroupByPool(byAsset map[chainsync.AssetID]uint64, poolsByIdent map[string
 	return byIdent
 }
 
-func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emissionsByAsset map[chainsync.AssetID]uint64, lpTokensByAsset map[chainsync.AssetID]uint64) map[string]uint64 {
+func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emissionsByAsset map[chainsync.AssetID]uint64, lpTokensByAsset map[chainsync.AssetID]uint64) map[string]map[string]uint64 {
 	// expand out the lpTokensByOwner, so we can sort them canonically for the round-robin
 	type OwnerStake struct {
 		OwnerID string
@@ -354,7 +354,7 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 	})
 
 	// Now loop over each, and allocate a portion of the emissions
-	emissionsByOwner := map[string]uint64{}
+	emissionsByOwner := map[string]map[string]uint64{}
 	allocatedByAsset := map[chainsync.AssetID]uint64{}
 	for _, ownerStake := range ownerStakes {
 		for assetId, amount := range ownerStake.Value.Assets {
@@ -364,7 +364,12 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 			frac = frac.Mul(frac, amount.BigInt())
 			frac = frac.Div(frac, big.NewInt(0).SetUint64(totalLP))
 			allocation := frac.Uint64()
-			emissionsByOwner[ownerStake.OwnerID] += allocation
+			existing, ok := emissionsByOwner[ownerStake.OwnerID]
+			if !ok {
+				existing = map[string]uint64{}
+			}
+			existing[assetId.String()] += allocation
+			emissionsByOwner[ownerStake.OwnerID] = existing
 			allocatedByAsset[assetId] += allocation
 		}
 	}
@@ -377,8 +382,14 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 		} else if remainder > 0 {
 			for i := 0; i < remainder; i++ {
 				owner := ownerStakes[i%len(ownerStakes)]
-				emissionsByOwner[owner.OwnerID] += 1
-				allocatedAmount += 1
+				m := emissionsByOwner[owner.OwnerID]
+				// Add one to the first entry in this owner map
+				// It doesn't matter which one we add it to
+				for asset := range m {
+					emissionsByOwner[owner.OwnerID][asset] += 1
+					allocatedAmount += 1
+					break
+				}
 			}
 			if emissionsByAsset[assetId] != allocatedAmount {
 				panic("round-robin distribution wasn't succesful")
@@ -388,23 +399,37 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 	return emissionsByOwner
 }
 
-func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emissionsByOwner map[string]uint64, ownersByID map[string]types.MultisigScript) []types.Earning {
+func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emissionsByOwner map[string]map[string]uint64, ownersByID map[string]types.MultisigScript) ([]types.Earning, map[string]uint64) {
 	var ret []types.Earning
-	for ownerID, amount := range emissionsByOwner {
-		if amount == 0 {
-			continue
+	total := map[string]uint64{}
+	for ownerID, perLPToken := range emissionsByOwner {
+		ownerValue := chainsync.Value{
+			Coins: num.Int64(0),
+			Assets: map[chainsync.AssetID]num.Int{
+				program.EmittedAsset: num.Uint64(0),
+			},
 		}
-		earning := types.Earning{
-			OwnerID:    ownerID,
-			Owner:      ownersByID[ownerID],
-			Program:    program.ID,
-			EarnedDate: date,
-			Value: chainsync.Value{
+		ownerValueByLP := map[string]chainsync.Value{}
+		for lpToken, amount := range perLPToken {
+			ownerValue.Assets[program.EmittedAsset] = ownerValue.Assets[program.EmittedAsset].Add(num.Uint64(amount))
+			ownerValueByLP[lpToken] = chainsync.Value{
 				Coins: num.Int64(0),
 				Assets: map[chainsync.AssetID]num.Int{
 					program.EmittedAsset: num.Uint64(amount),
 				},
-			},
+			}
+			total[ownerID] += amount
+		}
+		if ownerValue.Assets[program.EmittedAsset].Uint64() == 0 {
+			continue
+		}
+		earning := types.Earning{
+			OwnerID:        ownerID,
+			Owner:          ownersByID[ownerID],
+			Program:        program.ID,
+			EarnedDate:     date,
+			Value:          ownerValue,
+			ValueByLPToken: ownerValueByLP,
 		}
 		if program.EarningExpiration != nil {
 			time, err := time.Parse(types.DateFormat, date)
@@ -420,7 +445,7 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 	sort.Slice(ret, func(i, j int) bool {
 		return ret[i].OwnerID < ret[j].OwnerID
 	})
-	return ret
+	return ret, total
 }
 
 type CalculationOutputs struct {
@@ -526,7 +551,7 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 
 	// Users will be able to claim these emitted tokens
 	// we return a set of "earnings" for the day
-	earnings := EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID)
+	earnings, perOwnerTotal := EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID)
 	return CalculationOutputs{
 		Timestamp: time.Now().Format(time.RFC3339),
 
@@ -545,7 +570,7 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 		TotalEmissions:  program.DailyEmission,
 		EmissionsByPool: emissionsByPool,
 
-		EmissionsByOwner: emissionsByOwner,
+		EmissionsByOwner: perOwnerTotal,
 
 		EstimatedEmissionsLovelaceValue:  emittedLovelaceValue,
 		EstimatedEmissionsLovelaceByPool: emittedLovelaceValueByPool,
