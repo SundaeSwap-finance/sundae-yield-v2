@@ -61,4 +61,5 @@ type Earning struct {
 	EarnedDate     Date
 	ExpirationDate *time.Time
 	Value          chainsync.Value
+	ValueByLPToken map[string]chainsync.Value
 }
