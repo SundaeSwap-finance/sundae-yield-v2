@@ -222,17 +222,16 @@ func Test_PoolForEmissions(t *testing.T) {
 	assert.EqualValues(t, map[string]uint64{"C": 202}, selectedPools)
 
 	program.MaxPoolCount = 10
-	program.MaxPoolIntegerPercent = 20
+	program.MaxPoolIntegerPercent = 33
 	selectedPools = SelectPoolsForEmission(program, map[string]uint64{
-		"":  7899, // total of 10,000
-		"A": 100,
-		"B": 200,
-		"C": 300,
-		"D": 400,
-		"E": 500,
-		"F": 601, // Ensures that F-B are *just* slightly over 20%, A should get excluded
+		"A": 997,
+		"B": 998,
+		"C": 999,
+		"D": 1000,
+		"E": 1001,
+		"F": 1002, // Ensures that F+E are *just* slightly over 33%, A-D should get excluded
 	}, nil)
-	assert.EqualValues(t, map[string]uint64{"F": 601, "E": 500, "D": 400, "C": 300, "B": 200}, selectedPools)
+	assert.EqualValues(t, map[string]uint64{"F": 1002, "E": 1001}, selectedPools)
 }
 
 func Test_PoolsForEmissions_WithNepotism(t *testing.T) {
