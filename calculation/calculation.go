@@ -183,6 +183,9 @@ func SelectPoolsForEmission(program types.Program, delegationsByPool map[string]
 
 	totalDelegation := uint64(0)
 	for poolIdent, amt := range delegationsByPool {
+		if poolIdent == "" {
+			continue
+		}
 		totalDelegation += amt
 		candidates = append(candidates, Candidate{PoolIdent: poolIdent, Total: amt})
 	}
@@ -460,6 +463,8 @@ type CalculationOutputs struct {
 	QualifyingDelegationByPool  map[string]uint64
 	PoolDisqualificationReasons map[string]string
 
+	PoolsReceivingEmissions map[string]uint64
+
 	LockedLPByPool map[string]uint64
 	TotalLPByPool  map[string]uint64
 
@@ -563,6 +568,8 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 
 		QualifyingDelegationByPool:  qualifyingDelegationsPerPool,
 		PoolDisqualificationReasons: poolDisqualificationReasons,
+
+		PoolsReceivingEmissions: poolsReceivingEmissions,
 
 		LockedLPByPool: lockedLPByPool,
 		TotalLPByPool:  totalLPByPool,
