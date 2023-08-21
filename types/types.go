@@ -31,13 +31,15 @@ type Program struct {
 }
 
 type Pool struct {
-	PoolIdent      string
-	TotalLPTokens  uint64
-	LPAsset        chainsync.AssetID
-	AssetA         chainsync.AssetID
-	AssetAQuantity uint64
-	AssetB         chainsync.AssetID
-	AssetBQuantity uint64
+	PoolIdent       string
+	TransactionHash string
+	Slot            uint64
+	TotalLPTokens   uint64
+	LPAsset         chainsync.AssetID
+	AssetA          chainsync.AssetID
+	AssetAQuantity  uint64
+	AssetB          chainsync.AssetID
+	AssetBQuantity  uint64
 }
 
 type Delegation struct {
@@ -47,8 +49,10 @@ type Delegation struct {
 }
 
 type Position struct {
-	OwnerID string `dynamodbav:"OwnerID" ddb:"gsi_hash:ByOwner"`
-	Owner   MultisigScript
+	OwnerID         string `dynamodbav:"OwnerID" ddb:"gsi_hash:ByOwner"`
+	Owner           MultisigScript
+	TransactionHash string
+	Slot            uint64
 
 	Value      chainsync.Value
 	Delegation []Delegation
