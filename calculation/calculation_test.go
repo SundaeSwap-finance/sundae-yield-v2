@@ -24,8 +24,11 @@ func sampleProgram(emissions uint64) types.Program {
 	}
 }
 
-func samplePosition(staked int64, delegations ...types.Delegation) types.Position {
+func samplePosition(owner string, staked int64, delegations ...types.Delegation) types.Position {
 	return types.Position{
+		OwnerID:   owner,
+		Slot:      0,
+		SpentSlot: 0,
 		Value: chainsync.Value{
 			Coins: num.Int64(0),
 			Assets: map[chainsync.AssetID]num.Int{
@@ -41,14 +44,14 @@ func Test_TotalDelegations(t *testing.T) {
 
 	// The simplest case
 	positions := []types.Position{
-		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}),
+		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}),
 	}
 	delegationsByPool, totalDelegations := CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 100_000, delegationsByPool["01"])
 	assert.EqualValues(t, 100_000, totalDelegations)
 
 	positions = []types.Position{
-		samplePosition(100_000),
+		samplePosition("Me", 100_000),
 	}
 	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 100_000, delegationsByPool[""])
@@ -56,7 +59,7 @@ func Test_TotalDelegations(t *testing.T) {
 
 	// Should split evenly between delegations
 	positions = []types.Position{
-		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 	}
 	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 50_000, delegationsByPool["01"])
@@ -65,7 +68,7 @@ func Test_TotalDelegations(t *testing.T) {
 
 	// Should handle bankers rounding
 	positions = []types.Position{
-		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 2}),
+		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 2}),
 	}
 	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 33_334, delegationsByPool["01"])
@@ -74,8 +77,8 @@ func Test_TotalDelegations(t *testing.T) {
 
 	// Should handle multiple positions
 	positions = []types.Position{
-		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
-		samplePosition(200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
+		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		samplePosition("Me", 200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
 	}
 	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	assert.EqualValues(t, 50_000, delegationsByPool["01"])
@@ -96,7 +99,7 @@ func Test_TotalDelegations(t *testing.T) {
 		},
 	}
 	positions = []types.Position{
-		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 	}
 	positions[0].Value.Assets["LP"] = num.Int64(50_000)
 	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, pools)
@@ -107,8 +110,8 @@ func Test_TotalDelegations(t *testing.T) {
 	// Should handle delegations to multiple programs
 
 	positions = []types.Position{
-		samplePosition(100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: "OTHER_PROGRAM", PoolIdent: "99", Weight: 100}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
-		samplePosition(200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
+		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: "OTHER_PROGRAM", PoolIdent: "99", Weight: 100}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		samplePosition("Me", 200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
 	}
 
 	delegationsByPool, totalDelegations = CalculateTotalDelegations(program, positions, map[string]types.Pool{})
@@ -131,7 +134,7 @@ func Test_SummationConstraint(t *testing.T) {
 		delegations = append(delegations, types.Delegation{PoolIdent: fmt.Sprintf("%v", pool), Weight: uint32(weight)})
 	}
 	positions := []types.Position{
-		samplePosition(initialSundae, delegations...),
+		samplePosition("Me", initialSundae, delegations...),
 	}
 	delegationsByPool, totalDelegation := CalculateTotalDelegations(program, positions, map[string]types.Pool{})
 	actualSum := uint64(0)
@@ -273,53 +276,76 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 		"X": {PoolIdent: "X", LPAsset: "LP_X"},
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y"},
 	}
-	byOwner, byAsset := TotalLPByOwnerAndAsset([]types.Position{
+	byOwner, byAsset := TotalLPDaysByOwnerAndAsset([]types.Position{
 		{OwnerID: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
-	}, pools)
-	assert.EqualValues(t, map[string]chainsync.Value{
-		"A": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}},
+	}, pools, 0, 86400)
+	assert.EqualValues(t, map[string]map[chainsync.AssetID]uint64{
+		"A": {"LP_X": 100},
 	}, byOwner)
 	assert.EqualValues(t, map[chainsync.AssetID]uint64{
 		"LP_X": 100,
 	}, byAsset)
 
-	byOwner, byAsset = TotalLPByOwnerAndAsset([]types.Position{
+	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
 		{OwnerID: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
 		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200)}}},
-	}, pools)
-	assert.EqualValues(t, map[string]chainsync.Value{
-		"A": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}},
-		"B": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200)}},
+	}, pools, 0, 86400)
+	assert.EqualValues(t, map[string]map[chainsync.AssetID]uint64{
+		"A": {"LP_X": 100},
+		"B": {"LP_X": 200},
 	}, byOwner)
 	assert.EqualValues(t, map[chainsync.AssetID]uint64{
 		"LP_X": 300,
 	}, byAsset)
 
-	byOwner, byAsset = TotalLPByOwnerAndAsset([]types.Position{
+	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
 		{OwnerID: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
 		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200)}}},
 		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
-	}, pools)
-	assert.EqualValues(t, map[string]chainsync.Value{
-		"A": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}},
-		"B": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(500)}},
+	}, pools, 0, 86400)
+	assert.EqualValues(t, map[string]map[chainsync.AssetID]uint64{
+		"A": {"LP_X": 100},
+		"B": {"LP_X": 500},
 	}, byOwner)
 	assert.EqualValues(t, map[chainsync.AssetID]uint64{
 		"LP_X": 600,
 	}, byAsset)
 
-	byOwner, byAsset = TotalLPByOwnerAndAsset([]types.Position{
+	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
 		{OwnerID: "A", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
 		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200), "LP_Y": num.Uint64(150)}}},
 		{OwnerID: "B", Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
-	}, pools)
-	assert.EqualValues(t, map[string]chainsync.Value{
-		"A": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}},
-		"B": {Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(500), "LP_Y": num.Uint64(150)}},
+	}, pools, 0, 86400)
+	assert.EqualValues(t, map[string]map[chainsync.AssetID]uint64{
+		"A": {"LP_X": 100},
+		"B": {"LP_X": 500, "LP_Y": 150},
 	}, byOwner)
 	assert.EqualValues(t, map[chainsync.AssetID]uint64{
 		"LP_X": 600,
 		"LP_Y": 150,
+	}, byAsset)
+
+	// Test the time-weighting bits
+	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
+		// Half day
+		{OwnerID: "A", Slot: 143200, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
+		// Quarter day, with rounding down
+		{OwnerID: "B", Slot: 143200, SpentTransaction: "A", SpentSlot: 164800, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(200), "LP_Y": num.Uint64(150)}}},
+		// Lockup before the day starts
+		{OwnerID: "C", Slot: 12, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
+		// Consecutive positions, constituting half, plus after day ends
+		{OwnerID: "D", Slot: 143200, SpentTransaction: "B", SpentSlot: 164800, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
+		{OwnerID: "D", Slot: 164800, SpentTransaction: "C", SpentSlot: 264800, Value: chainsync.Value{Assets: map[chainsync.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
+	}, pools, 100000, 186400)
+	assert.EqualValues(t, map[string]map[chainsync.AssetID]uint64{
+		"A": {"LP_X": 50},
+		"B": {"LP_X": 50, "LP_Y": 37},
+		"C": {"LP_X": 300},
+		"D": {"LP_X": 150},
+	}, byOwner)
+	assert.EqualValues(t, map[chainsync.AssetID]uint64{
+		"LP_X": 550,
+		"LP_Y": 37,
 	}, byAsset)
 }
 
@@ -341,14 +367,13 @@ type Alloc struct {
 	uint64
 }
 
-func LPByOwners(alloc ...Alloc) map[string]chainsync.Value {
-	lpByOwners := map[string]chainsync.Value{}
+func LPByOwners(alloc ...Alloc) map[string]map[chainsync.AssetID]uint64 {
+	lpByOwners := map[string]map[chainsync.AssetID]uint64{}
 	for _, a := range alloc {
-		lpByOwners[a.string] = chainsync.Add(lpByOwners[a.string], chainsync.Value{
-			Assets: map[chainsync.AssetID]num.Int{
-				a.AssetID: num.Uint64(a.uint64),
-			},
-		})
+		if _, ok := lpByOwners[a.string]; !ok {
+			lpByOwners[a.string] = map[chainsync.AssetID]uint64{}
+		}
+		lpByOwners[a.string][a.AssetID] = lpByOwners[a.string][a.AssetID] + a.uint64
 	}
 	return lpByOwners
 }
@@ -512,5 +537,5 @@ func Random_Calc_Earnings(numPositions, numOwners, numPools int) (types.Program,
 		}
 	}
 
-	return program, CalculateEarnings(now, program, positions, pools)
+	return program, CalculateEarnings(now, 0, 86400, program, positions, pools)
 }

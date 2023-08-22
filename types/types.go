@@ -49,10 +49,12 @@ type Delegation struct {
 }
 
 type Position struct {
-	OwnerID         string `dynamodbav:"OwnerID" ddb:"gsi_hash:ByOwner"`
-	Owner           MultisigScript
-	TransactionHash string
-	Slot            uint64
+	OwnerID          string `dynamodbav:"OwnerID" ddb:"gsi_hash:ByOwner"`
+	Owner            MultisigScript
+	TransactionHash  string
+	Slot             uint64
+	SpentTransaction string
+	SpentSlot        uint64
 
 	Value      chainsync.Value
 	Delegation []Delegation
