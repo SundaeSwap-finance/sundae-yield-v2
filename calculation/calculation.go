@@ -418,11 +418,13 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 		ownerValueByLP := map[string]chainsync.Value{}
 		for lpToken, amount := range perLPToken {
 			ownerValue.Assets[program.EmittedAsset] = ownerValue.Assets[program.EmittedAsset].Add(num.Uint64(amount))
-			ownerValueByLP[lpToken] = chainsync.Value{
-				Coins: num.Int64(0),
-				Assets: map[chainsync.AssetID]num.Int{
-					program.EmittedAsset: num.Uint64(amount),
-				},
+			if amount > 0 {
+				ownerValueByLP[lpToken] = chainsync.Value{
+					Coins: num.Int64(0),
+					Assets: map[chainsync.AssetID]num.Int{
+						program.EmittedAsset: num.Uint64(amount),
+					},
+				}
 			}
 			total[ownerID] += amount
 		}
