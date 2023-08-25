@@ -363,10 +363,16 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 		for assetId, amount := range ownerStake.Value.Assets {
 			emission := emissionsByAsset[assetId]
 			totalLP := lpTokensByAsset[assetId]
+			if totalLP == 0 {
+				continue
+			}
 			frac := big.NewInt(0).SetUint64(emission)
 			frac = frac.Mul(frac, amount.BigInt())
 			frac = frac.Div(frac, big.NewInt(0).SetUint64(totalLP))
 			allocation := frac.Uint64()
+			if allocation == 0 {
+				continue
+			}
 			existing, ok := emissionsByOwner[ownerStake.OwnerID]
 			if !ok {
 				existing = map[string]uint64{}
@@ -383,19 +389,26 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 		if remainder < 0 {
 			panic("emitted more to users than the allocated emissions for a pool, somehow")
 		} else if remainder > 0 {
-			for i := 0; i < remainder; i++ {
+			i := 0
+			for remainder > 0 {
 				owner := ownerStakes[i%len(ownerStakes)]
 				m := emissionsByOwner[owner.OwnerID]
+				i += 1
 				// Pick the min LP token assset ID to add one token to
 				// It doesn't actually matter which one we add it to, but this makes it determinsitic
 				minLP := ""
 				for asset := range m {
-					if minLP == "" || asset < minLP {
+					if _, ok := emissionsByAsset[chainsync.AssetID(asset)]; ok && (minLP == "" || asset < minLP) {
 						minLP = asset
 					}
 				}
+				// If we didn't find anything, the user likely isn't qualified to receive emissions for *any* LP token, so skip over them
+				if minLP == "" {
+					continue
+				}
 				emissionsByOwner[owner.OwnerID][minLP] += 1
 				allocatedAmount += 1
+				remainder -= 1
 			}
 			if emissionsByAsset[assetId] != allocatedAmount {
 				panic("round-robin distribution wasn't succesful")

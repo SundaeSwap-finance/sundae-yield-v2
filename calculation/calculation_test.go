@@ -383,6 +383,18 @@ func Test_EmissionsToOwners(t *testing.T) {
 	lpTokensByAsset = map[chainsync.AssetID]uint64{"LP_X": 300, "LP_Y": 300}
 	emissionsByOwner = DistributeEmissionsToOwners(lpByOwners, emissionsByAsset, lpTokensByAsset)
 	assert.EqualValues(t, map[string]map[string]uint64{"A": {"LP_X": 334, "LP_Y": 500}, "B": {"LP_X": 666}}, emissionsByOwner)
+
+	// Test the case where one of the owners isn't qualified for *any* emissions, but round-robin calcs happen
+	lpByOwners = LPByOwners(
+		Alloc{"z", "LP_Z", 100},
+		Alloc{"A", "LP_X", 100},
+		Alloc{"B", "LP_X", 200},
+		Alloc{"A", "LP_Y", 300},
+	)
+	emissionsByAsset = map[chainsync.AssetID]uint64{"LP_X": 1000, "LP_Y": 500}
+	lpTokensByAsset = map[chainsync.AssetID]uint64{"LP_X": 300, "LP_Y": 300, "LP_Z": 500}
+	emissionsByOwner = DistributeEmissionsToOwners(lpByOwners, emissionsByAsset, lpTokensByAsset)
+	assert.EqualValues(t, map[string]map[string]uint64{"A": {"LP_X": 334, "LP_Y": 500}, "B": {"LP_X": 666}}, emissionsByOwner)
 }
 
 func makeValue(token string, amt uint64) chainsync.Value {
