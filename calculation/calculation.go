@@ -241,6 +241,7 @@ func SelectPoolsForEmission(program types.Program, delegationsByPool map[string]
 	return poolsReceivingEmissionsByIdent
 }
 
+// Split the daily emissions of the program among a set of pools that have been chosen for emissions
 func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsByIdent map[string]uint64) map[string]uint64 {
 	// We'll need to loop over pools round-robin by largest value; ordering of maps is non-deterministic
 	type Pairs struct {
@@ -294,24 +295,52 @@ func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsBy
 	return emissionsByPool
 }
 
-func TotalLPByOwnerAndAsset(positions []types.Position, poolsByIdent map[string]types.Pool) (map[string]chainsync.Value, map[chainsync.AssetID]uint64) {
+// Compute the total LP token days that each owner has; We multiply the LP tokens by seconds they were locked, and then divide by 86400.
+// This effectively divides the LP tokens by the fraction of the day they are locked, to prevent someone locking in the last minute of the day to receive rewards
+func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolsByIdent map[string]types.Pool, minSlot uint64, maxSlot uint64) (map[string]map[chainsync.AssetID]uint64, map[chainsync.AssetID]uint64) {
 	poolsByLP := map[chainsync.AssetID]types.Pool{}
 	for _, pool := range poolsByIdent {
 		poolsByLP[pool.LPAsset] = pool
 	}
 
-	lpByOwner := map[string]chainsync.Value{}
-	lpByAsset := map[chainsync.AssetID]uint64{}
+	lpDaysByOwner := map[string]map[chainsync.AssetID]uint64{}
+	lpDaysByAsset := map[chainsync.AssetID]uint64{}
 	for _, p := range positions {
 		for assetId, amount := range p.Value.Assets {
 			if _, ok := poolsByLP[assetId]; ok {
-				lpValue := chainsync.Value{Coins: num.Int64(0), Assets: map[chainsync.AssetID]num.Int{assetId: amount}}
-				lpByOwner[p.OwnerID] = chainsync.Add(lpByOwner[p.OwnerID], lpValue)
-				lpByAsset[assetId] += amount.Uint64()
+				// Compute the (truncated) start and end time,
+				startTime := p.Slot
+				if startTime < minSlot {
+					startTime = minSlot
+				}
+				endTime := p.SpentSlot
+				if p.SpentTransaction == "" || p.SpentSlot > maxSlot {
+					endTime = maxSlot
+				}
+				if endTime == startTime {
+					continue
+				}
+				// so we can compute what fraction of the day this position counts for
+				secondsLocked := endTime - startTime
+
+				weight := big.NewInt(0).SetUint64(secondsLocked)
+				weight = weight.Mul(weight, amount.BigInt())
+				weight = weight.Div(weight, big.NewInt(0).SetUint64(maxSlot-minSlot))
+
+				existingLPDays, ok := lpDaysByOwner[p.OwnerID]
+				if !ok {
+					existingLPDays = map[chainsync.AssetID]uint64{}
+				}
+				newWeight := existingLPDays[assetId] + weight.Uint64()
+
+				existingLPDays[assetId] = newWeight
+				lpDaysByOwner[p.OwnerID] = existingLPDays
+
+				lpDaysByAsset[assetId] += weight.Uint64()
 			}
 		}
 	}
-	return lpByOwner, lpByAsset
+	return lpDaysByOwner, lpDaysByAsset
 }
 
 func RegroupByAsset(byPool map[string]uint64, poolsByIdent map[string]types.Pool) map[chainsync.AssetID]uint64 {
@@ -338,15 +367,15 @@ func RegroupByPool(byAsset map[chainsync.AssetID]uint64, poolsByIdent map[string
 	return byIdent
 }
 
-func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emissionsByAsset map[chainsync.AssetID]uint64, lpTokensByAsset map[chainsync.AssetID]uint64) map[string]map[string]uint64 {
+func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[chainsync.AssetID]uint64, emissionsByAsset map[chainsync.AssetID]uint64, lpTokensByAsset map[chainsync.AssetID]uint64) map[string]map[string]uint64 {
 	// expand out the lpTokensByOwner, so we can sort them canonically for the round-robin
 	type OwnerStake struct {
 		OwnerID string
-		Value   chainsync.Value
+		Value   map[chainsync.AssetID]uint64
 	}
 	var ownerStakes []OwnerStake
-	for ownerId, value := range lpTokensByOwner {
-		ownerStakes = append(ownerStakes, OwnerStake{OwnerID: ownerId, Value: value})
+	for ownerId, weights := range lpWeightByOwner {
+		ownerStakes = append(ownerStakes, OwnerStake{OwnerID: ownerId, Value: weights})
 	}
 	// We sort by owner key here; in theory we could sort by "total value staked", but it's
 	// very difficult to compare that here, so we just sort by owner;
@@ -360,14 +389,14 @@ func DistributeEmissionsToOwners(lpTokensByOwner map[string]chainsync.Value, emi
 	emissionsByOwner := map[string]map[string]uint64{}
 	allocatedByAsset := map[chainsync.AssetID]uint64{}
 	for _, ownerStake := range ownerStakes {
-		for assetId, amount := range ownerStake.Value.Assets {
+		for assetId, amount := range ownerStake.Value {
 			emission := emissionsByAsset[assetId]
 			totalLP := lpTokensByAsset[assetId]
 			if totalLP == 0 {
 				continue
 			}
 			frac := big.NewInt(0).SetUint64(emission)
-			frac = frac.Mul(frac, amount.BigInt())
+			frac = frac.Mul(frac, big.NewInt(0).SetUint64(amount))
 			frac = frac.Div(frac, big.NewInt(0).SetUint64(totalLP))
 			allocation := frac.Uint64()
 			if allocation == 0 {
@@ -497,7 +526,7 @@ type CalculationOutputs struct {
 	Earnings []types.Earning
 }
 
-func CalculateEarnings(date types.Date, program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) CalculationOutputs {
+func CalculateEarnings(date types.Date, startSlot uint64, endSlot uint64, program types.Program, positions []types.Position, poolsByIdent map[string]types.Pool) CalculationOutputs {
 	// Check for start and end dates, inclusive
 	if date < program.FirstDailyRewards {
 		return CalculationOutputs{}
@@ -548,9 +577,9 @@ func CalculateEarnings(date types.Date, program types.Program, positions []types
 	emissionsByAsset := RegroupByAsset(DistributeEmissionsToPools(program, poolsReceivingEmissions), poolsByIdent)
 
 	// For each pool, SundaeSwap labs will then calculate the allocation of rewards in proportion to the LP tokens held at the Locking Contract.
-	lpTokensByOwner, lpTokensByAsset := TotalLPByOwnerAndAsset(positions, poolsByIdent)
+	lpDaysByOwner, lpTokensByAsset := TotalLPDaysByOwnerAndAsset(positions, poolsByIdent, startSlot, endSlot)
 
-	emissionsByOwner := DistributeEmissionsToOwners(lpTokensByOwner, emissionsByAsset, lpTokensByAsset)
+	emissionsByOwner := DistributeEmissionsToOwners(lpDaysByOwner, emissionsByAsset, lpTokensByAsset)
 
 	ownersByID := map[string]types.MultisigScript{}
 	for _, position := range positions {
