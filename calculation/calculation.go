@@ -120,8 +120,10 @@ func CalculateTotalDelegations(
 	return totalDelegationsByPoolIdent, totalDelegations, nil
 }
 
-func CalculateTotalLP(
+// Calculate the locked LP, total LP, estimated lovelace value per pool and globally, as of the final snapshot
+func CalculateTotalLPAtSnapshot(
 	ctx context.Context,
+	maxSlot uint64,
 	positions []types.Position,
 	poolLookup PoolLookup,
 ) (map[string]uint64, map[string]uint64, map[string]uint64, uint64, error) {
@@ -130,6 +132,15 @@ func CalculateTotalLP(
 	valueByIdent := map[string]uint64{}
 	totalValue := uint64(0)
 	for _, position := range positions {
+		// The values calculated by this method are only used for reporting purposes
+		// and for the 1% pool filter; So, we interpret the spec to be
+		// "only pools with 1% of the LP tokens locked at the snapshot are eligible"
+		// (as opposed to integrated over the day)
+		// This also avoids a subtle corner case where the pool can be deleted by the snapshot,
+		// but still have a position earlier in the day with locked LP, which would cause a divide by zero below
+		if position.SpentTransaction != "" && position.SpentSlot < maxSlot {
+			continue
+		}
 		for assetId, amount := range position.Value.Assets {
 			if poolLookup.IsLPToken(assetId) {
 				pool, err := poolLookup.PoolByLPToken(ctx, assetId)
@@ -583,7 +594,7 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	qualifyingDelegationsPerPool := map[string]uint64{}
 	// Any pool that has less than 1% of the pools LP tokens held at the Locking Contract
 	// will be considered an abstention and will not be eligible for rewards.
-	lockedLPByPool, totalLPByPool, estimatedValue, totalEstimatedValue, err := CalculateTotalLP(ctx, positions, poolLookup)
+	lockedLPByPool, totalLPByPool, estimatedValueByPool, totalEstimatedValue, err := CalculateTotalLPAtSnapshot(ctx, endSlot, positions, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to calculate total LP: %w", err)
 	}
@@ -615,7 +626,7 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 			LockedLPByPool:                lockedLPByPool,
 			TotalLPByPool:                 totalLPByPool,
 			EstimatedLockedLovelace:       totalEstimatedValue,
-			EstimatedLockedLovelaceByPool: estimatedValue,
+			EstimatedLockedLovelaceByPool: estimatedValueByPool,
 		}, nil
 	}
 
@@ -681,7 +692,7 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 		TotalLPByPool:  totalLPByPool,
 
 		EstimatedLockedLovelace:       totalEstimatedValue,
-		EstimatedLockedLovelaceByPool: estimatedValue,
+		EstimatedLockedLovelaceByPool: estimatedValueByPool,
 
 		TotalEmissions:  program.DailyEmission,
 		EmissionsByPool: emissionsByPool,
