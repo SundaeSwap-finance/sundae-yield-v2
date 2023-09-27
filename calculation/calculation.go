@@ -1,6 +1,7 @@
 package calculation
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 	"sort"
@@ -12,14 +13,19 @@ import (
 )
 
 type PoolLookup interface {
-	PoolByIdent(poolIdent string) (types.Pool, error)
-	PoolByLPToken(lpToken chainsync.AssetID) (types.Pool, error)
+	PoolByIdent(ctx context.Context, poolIdent string) (types.Pool, error)
+	PoolByLPToken(ctx context.Context, lpToken chainsync.AssetID) (types.Pool, error)
 	IsLPToken(assetId chainsync.AssetID) bool
 	LPTokenToPoolIdent(lpToken chainsync.AssetID) (string, error)
 }
 
 // Calculate the total amount of sundae delegated to each pool, according to each users chosen "weighting"
-func CalculateTotalDelegations(program types.Program, positions []types.Position, poolLookup PoolLookup) (map[string]uint64, uint64, error) {
+func CalculateTotalDelegations(
+	ctx context.Context,
+	program types.Program,
+	positions []types.Position,
+	poolLookup PoolLookup,
+) (map[string]uint64, uint64, error) {
 	totalDelegationsByPoolIdent := map[string]uint64{}
 	if program.StakedAsset == "" {
 		for _, pool := range program.EligiblePools {
@@ -34,7 +40,7 @@ func CalculateTotalDelegations(program types.Program, positions []types.Position
 		// Add in the value of LP tokens, according to the ratio of the pools at the snapshot
 		for assetId, amt := range position.Value.Assets {
 			if poolLookup.IsLPToken(assetId) {
-				pool, err := poolLookup.PoolByLPToken(assetId)
+				pool, err := poolLookup.PoolByLPToken(ctx, assetId)
 				if err != nil {
 					return nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
 				}
@@ -114,7 +120,11 @@ func CalculateTotalDelegations(program types.Program, positions []types.Position
 	return totalDelegationsByPoolIdent, totalDelegations, nil
 }
 
-func CalculateTotalLP(positions []types.Position, poolLookup PoolLookup) (map[string]uint64, map[string]uint64, map[string]uint64, uint64, error) {
+func CalculateTotalLP(
+	ctx context.Context,
+	positions []types.Position,
+	poolLookup PoolLookup,
+) (map[string]uint64, map[string]uint64, map[string]uint64, uint64, error) {
 	poolsByIdent := map[string]types.Pool{}
 	lockedLPByIdent := map[string]uint64{}
 	valueByIdent := map[string]uint64{}
@@ -122,7 +132,7 @@ func CalculateTotalLP(positions []types.Position, poolLookup PoolLookup) (map[st
 	for _, position := range positions {
 		for assetId, amount := range position.Value.Assets {
 			if poolLookup.IsLPToken(assetId) {
-				pool, err := poolLookup.PoolByLPToken(assetId)
+				pool, err := poolLookup.PoolByLPToken(ctx, assetId)
 				if err != nil {
 					return nil, nil, nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
 				}
@@ -181,7 +191,12 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 }
 
 // Select the top pools according to the program criteria
-func SelectPoolsForEmission(program types.Program, delegationsByPool map[string]uint64, poolLookup PoolLookup) (map[string]uint64, error) {
+func SelectPoolsForEmission(
+	ctx context.Context,
+	program types.Program,
+	delegationsByPool map[string]uint64,
+	poolLookup PoolLookup,
+) (map[string]uint64, error) {
 	// Convert the map into a list of candidates, so we can sort them
 	type Candidate struct {
 		PoolIdent string
@@ -204,12 +219,12 @@ func SelectPoolsForEmission(program types.Program, delegationsByPool map[string]
 		// under the hypothesis that less liquidity needs to attract more liquidity providers
 		// (technically wasn't part of the spec, and so we make a reasonable choice)
 		if candidates[i].Total == candidates[j].Total {
-			poolI, err := poolLookup.PoolByIdent(candidates[i].PoolIdent)
+			poolI, err := poolLookup.PoolByIdent(ctx, candidates[i].PoolIdent)
 			if err != nil {
 				errs = append(errs, err)
 				return false
 			}
-			poolJ, err := poolLookup.PoolByIdent(candidates[j].PoolIdent)
+			poolJ, err := poolLookup.PoolByIdent(ctx, candidates[j].PoolIdent)
 			if err != nil {
 				errs = append(errs, err)
 				return false
@@ -360,13 +375,13 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 	return lpDaysByOwner, lpDaysByAsset
 }
 
-func RegroupByAsset(byPool map[string]uint64, poolLookup PoolLookup) (map[chainsync.AssetID]uint64, error) {
+func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup PoolLookup) (map[chainsync.AssetID]uint64, error) {
 	byLPAsset := map[chainsync.AssetID]uint64{}
 	for poolIdent, amount := range byPool {
 		if amount == 0 {
 			continue
 		}
-		pool, err := poolLookup.PoolByIdent(poolIdent)
+		pool, err := poolLookup.PoolByIdent(ctx, poolIdent)
 		if err != nil {
 			return nil, fmt.Errorf("unable to lookup pool for ident %v: %w", poolIdent, err)
 		}
@@ -375,14 +390,14 @@ func RegroupByAsset(byPool map[string]uint64, poolLookup PoolLookup) (map[chains
 	return byLPAsset, nil
 }
 
-func RegroupByPool(byAsset map[chainsync.AssetID]uint64, poolLookup PoolLookup) (map[string]uint64, error) {
+func RegroupByPool(ctx context.Context, byAsset map[chainsync.AssetID]uint64, poolLookup PoolLookup) (map[string]uint64, error) {
 	// Note: assumes bijection
 	byIdent := map[string]uint64{}
 	for asset, amount := range byAsset {
 		if amount == 0 {
 			continue
 		}
-		pool, err := poolLookup.PoolByLPToken(asset)
+		pool, err := poolLookup.PoolByLPToken(ctx, asset)
 		if err != nil {
 			return nil, fmt.Errorf("failed to lookup pool for LP token %v: %w", asset, err)
 		}
@@ -550,7 +565,7 @@ type CalculationOutputs struct {
 	Earnings []types.Earning
 }
 
-func CalculateEarnings(date types.Date, startSlot uint64, endSlot uint64, program types.Program, positions []types.Position, poolLookup PoolLookup) (CalculationOutputs, error) {
+func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, endSlot uint64, program types.Program, positions []types.Position, poolLookup PoolLookup) (CalculationOutputs, error) {
 	// Check for start and end dates, inclusive
 	if date < program.FirstDailyRewards {
 		return CalculationOutputs{}, nil
@@ -561,20 +576,20 @@ func CalculateEarnings(date types.Date, startSlot uint64, endSlot uint64, progra
 
 	// To calculate the daily emissions, ... first take inventory of SUNDAE held at the Locking Contract
 	// and factory in the users delegation
-	delegationByPool, totalDelegation, err := CalculateTotalDelegations(program, positions, poolLookup)
+	delegationByPool, totalDelegation, err := CalculateTotalDelegations(ctx, program, positions, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to calculate total delegations: %w", err)
 	}
 	qualifyingDelegationsPerPool := map[string]uint64{}
 	// Any pool that has less than 1% of the pools LP tokens held at the Locking Contract
 	// will be considered an abstention and will not be eligible for rewards.
-	lockedLPByPool, totalLPByPool, estimatedValue, totalEstimatedValue, err := CalculateTotalLP(positions, poolLookup)
+	lockedLPByPool, totalLPByPool, estimatedValue, totalEstimatedValue, err := CalculateTotalLP(ctx, positions, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to calculate total LP: %w", err)
 	}
 	poolDisqualificationReasons := map[string]string{}
 	for poolIdent, locked := range lockedLPByPool {
-		pool, err := poolLookup.PoolByIdent(poolIdent)
+		pool, err := poolLookup.PoolByIdent(ctx, poolIdent)
 		if err != nil {
 			return CalculationOutputs{}, fmt.Errorf("failure to lookup pool with ident %v: %w", poolIdent, err)
 		}
@@ -605,13 +620,13 @@ func CalculateEarnings(date types.Date, startSlot uint64, endSlot uint64, progra
 	}
 
 	// The top pools ... will be eligible for yield farming rewards that day.
-	poolsReceivingEmissions, err := SelectPoolsForEmission(program, qualifyingDelegationsPerPool, poolLookup)
+	poolsReceivingEmissions, err := SelectPoolsForEmission(ctx, program, qualifyingDelegationsPerPool, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to select pools for emission: %w", err)
 	}
 
 	// We then divide the daily emissions among these pools ...
-	emissionsByAsset, err := RegroupByAsset(DistributeEmissionsToPools(program, poolsReceivingEmissions), poolLookup)
+	emissionsByAsset, err := RegroupByAsset(ctx, DistributeEmissionsToPools(program, poolsReceivingEmissions), poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to regroup emissions by asset: %w", err)
 	}
@@ -627,14 +642,14 @@ func CalculateEarnings(date types.Date, startSlot uint64, endSlot uint64, progra
 	}
 
 	// Find the pool that we should use for price reference, so we can estimate the ADA value of what was emitted
-	emissionsByPool, err := RegroupByPool(emissionsByAsset, poolLookup)
+	emissionsByPool, err := RegroupByPool(ctx, emissionsByAsset, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to regroup emissions by pool: %w", err)
 	}
 	var emittedLovelaceValue uint64
 	emittedLovelaceValueByPool := map[string]uint64{}
 	if program.ReferencePool != "" {
-		referencePool, err := poolLookup.PoolByIdent(program.ReferencePool)
+		referencePool, err := poolLookup.PoolByIdent(ctx, program.ReferencePool)
 		if err != nil {
 			return CalculationOutputs{}, fmt.Errorf("failure to fetch reference pool for pricing %v: %w", program.ReferencePool, err)
 		}
