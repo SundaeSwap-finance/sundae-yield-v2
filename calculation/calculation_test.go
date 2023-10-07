@@ -185,6 +185,29 @@ func Test_SummationConstraint(t *testing.T) {
 	assert.EqualValues(t, totalDelegation, actualSum)
 }
 
+func Test_SumWindow(t *testing.T) {
+	program := sampleProgram(500000_000_000)
+	program.ConsecutiveDelegationWindow = 1
+	qualifyingDelegations := map[string]uint64{
+		"A": 100,
+		"B": 200,
+	}
+	previousDays := []CalculationOutputs{
+		{
+			QualifyingDelegationByPool: map[string]uint64{
+				"B": 300,
+				"C": 400,
+			},
+		},
+	}
+	window, err := SumDelegationWindow(program, qualifyingDelegations, previousDays)
+	assert.Nil(t, err)
+	assert.Len(t, window, 3)
+	assert.EqualValues(t, window["A"], 100)
+	assert.EqualValues(t, window["B"], 500)
+	assert.EqualValues(t, window["C"], 400)
+}
+
 func Test_AtLeastOnePercent(t *testing.T) {
 	assert.False(t, atLeastIntegerPercent(0, 15000, 1))
 	assert.False(t, atLeastIntegerPercent(1, 15000, 1))
@@ -526,31 +549,37 @@ func Test_Calculate_Earnings(t *testing.T) {
 	numPositions := rand.Intn(3000) + 1000
 	numOwners := rand.Intn(numPositions-1) + 1
 	numPools := rand.Intn(300) + 100
-	program, calcOutputs, err := Random_Calc_Earnings(numPositions, numOwners, numPools)
-	assert.Nil(t, err)
-	total := uint64(0)
-	for _, e := range calcOutputs.Earnings {
-		total += e.Value.Assets[program.EmittedAsset].Uint64()
-	}
-	if total == 0 {
-		assert.Empty(t, calcOutputs.Earnings)
-	} else {
-		assert.Equal(t, total, program.DailyEmission)
+	program := sampleProgram(500_000_000_000)
+	program.ConsecutiveDelegationWindow = 3
+	previousDays := []CalculationOutputs{}
+	for i := 0; i < 10; i++ {
+		program, calcOutputs, err := Random_Calc_Earnings(program, numPositions, numOwners, numPools, previousDays)
+		assert.Nil(t, err)
+		total := uint64(0)
+		previousDays = append(previousDays, calcOutputs)
+		for _, e := range calcOutputs.Earnings {
+			total += e.Value.Assets[program.EmittedAsset].Uint64()
+		}
+		if total == 0 {
+			assert.Empty(t, calcOutputs.Earnings)
+		} else {
+			assert.Equal(t, total, program.DailyEmission)
+		}
 	}
 }
 
 func Benchmark_Calculate_Earnings(b *testing.B) {
+	program := sampleProgram(500_000_000_000)
 	for i := 0; i < b.N; i++ {
 		numPositions := 100_000
 		numOwners := 90_000
 		numPools := 1500
-		Random_Calc_Earnings(numPositions, numOwners, numPools)
+		Random_Calc_Earnings(program, numPositions, numOwners, numPools, []CalculationOutputs{})
 	}
 }
 
-func Random_Calc_Earnings(numPositions, numOwners, numPools int) (types.Program, CalculationOutputs, error) {
+func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPools int, previousDays []CalculationOutputs) (types.Program, CalculationOutputs, error) {
 	now := types.Date(time.Now().Format(types.DateFormat))
-	program := sampleProgram(500_000_000_000)
 	var positions []types.Position
 	pools := MockLookup{}
 
@@ -606,6 +635,13 @@ func Random_Calc_Earnings(numPositions, numOwners, numPools int) (types.Program,
 		}
 	}
 
-	results, err := CalculateEarnings(context.Background(), now, 0, 86400, program, positions, pools)
+	window := []CalculationOutputs{}
+	for i := 0; i < program.ConsecutiveDelegationWindow; i++ {
+		if len(previousDays) > i {
+			window = append(window, previousDays[len(previousDays)-1-i])
+		}
+	}
+
+	results, err := CalculateEarnings(context.Background(), now, 0, 86400, program, window, positions, pools)
 	return program, results, err
 }

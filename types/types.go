@@ -19,6 +19,10 @@ type Program struct {
 	StakedAsset   chainsync.AssetID
 	ReferencePool string // Which pool should we use as a reference when estimating locked value?
 
+	// Sum up delegations from the last N days, to smooth out instantaneous changes in delegation
+	// as per the following governance proposal: https://governance.sundaeswap.finance/#/proposal#fc3294e71a2141f2147b32a72299c0b0bb061d44409d498bc8063141d7b0c0e9
+	ConsecutiveDelegationWindow int
+
 	EarningExpiration *time.Duration
 
 	EligiblePools     []string
