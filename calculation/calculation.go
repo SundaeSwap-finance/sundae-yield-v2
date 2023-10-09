@@ -201,6 +201,47 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 	return true, ""
 }
 
+// Check which pools are disqualified and why, and return just the qualified delegation amounts
+func DisqualifyPools(ctx context.Context, program types.Program, lockedLPByPool map[string]uint64, delegationByPool map[string]uint64, poolLookup PoolLookup) (map[string]uint64, map[string]string, error) {
+	qualifyingDelegationsPerPool := map[string]uint64{}
+	poolDisqualificationReasons := map[string]string{}
+	for poolIdent, locked := range lockedLPByPool {
+		pool, err := poolLookup.PoolByIdent(ctx, poolIdent)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failure to lookup pool with ident %v: %w", poolIdent, err)
+		}
+		qualified, reason := isPoolQualified(program, pool, locked)
+		if !qualified {
+			if reason != "" {
+				poolDisqualificationReasons[poolIdent] = reason
+			}
+			qualifyingDelegationsPerPool[""] += delegationByPool[poolIdent]
+		} else {
+			qualifyingDelegationsPerPool[poolIdent] += delegationByPool[poolIdent]
+		}
+	}
+	return qualifyingDelegationsPerPool, poolDisqualificationReasons, nil
+}
+
+// Sum up the qualifying delegations over the last several days, to give each pool some "sticking" power
+func SumDelegationWindow(program types.Program, qualifyingDelegationsPerPool map[string]uint64, previousCalculations []CalculationOutputs) (map[string]uint64, error) {
+	if program.ConsecutiveDelegationWindow < len(previousCalculations) {
+		return nil, fmt.Errorf("too many historical snapshots")
+	}
+	// Note: we assume the snapshots are from previous consecutive days, since checking this for correctness would be a little awkward
+
+	windowedDelegation := map[string]uint64{}
+	for _, snapshot := range previousCalculations {
+		for poolIdent, amt := range snapshot.QualifyingDelegationByPool {
+			windowedDelegation[poolIdent] += amt
+		}
+	}
+	for poolIdent, amt := range qualifyingDelegationsPerPool {
+		windowedDelegation[poolIdent] += amt
+	}
+	return windowedDelegation, nil
+}
+
 // Select the top pools according to the program criteria
 func SelectPoolsForEmission(
 	ctx context.Context,
@@ -386,6 +427,7 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 	return lpDaysByOwner, lpDaysByAsset
 }
 
+// Switch the map key from pool Ident to LP token
 func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup PoolLookup) (map[chainsync.AssetID]uint64, error) {
 	byLPAsset := map[chainsync.AssetID]uint64{}
 	for poolIdent, amount := range byPool {
@@ -401,6 +443,7 @@ func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup Po
 	return byLPAsset, nil
 }
 
+// Switch the map key from LP token to pool Ident
 func RegroupByPool(ctx context.Context, byAsset map[chainsync.AssetID]uint64, poolLookup PoolLookup) (map[string]uint64, error) {
 	// Note: assumes bijection
 	byIdent := map[string]uint64{}
@@ -417,6 +460,7 @@ func RegroupByPool(ctx context.Context, byAsset map[chainsync.AssetID]uint64, po
 	return byIdent, nil
 }
 
+// Split the daily emissions of each pool among the owners of LP tokens, according to their total LP weight
 func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[chainsync.AssetID]uint64, emissionsByAsset map[chainsync.AssetID]uint64, lpTokensByAsset map[chainsync.AssetID]uint64) map[string]map[string]uint64 {
 	// expand out the lpTokensByOwner, so we can sort them canonically for the round-robin
 	type OwnerStake struct {
@@ -497,6 +541,7 @@ func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[chainsync.AssetI
 	return emissionsByOwner
 }
 
+// Convert a set of emissions records into actual earnings we can save in a database
 func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emissionsByOwner map[string]map[string]uint64, ownersByID map[string]types.MultisigScript) ([]types.Earning, map[string]uint64) {
 	var ret []types.Earning
 	total := map[string]uint64{}
@@ -557,6 +602,9 @@ type CalculationOutputs struct {
 	QualifyingDelegationByPool  map[string]uint64
 	PoolDisqualificationReasons map[string]string
 
+	NumDelegationDays          int
+	DelegationOverWindowByPool map[string]uint64
+
 	PoolsReceivingEmissions map[string]uint64
 
 	LockedLPByPool map[string]uint64
@@ -576,7 +624,7 @@ type CalculationOutputs struct {
 	Earnings []types.Earning
 }
 
-func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, endSlot uint64, program types.Program, positions []types.Position, poolLookup PoolLookup) (CalculationOutputs, error) {
+func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, endSlot uint64, program types.Program, previousResults []CalculationOutputs, positions []types.Position, poolLookup PoolLookup) (CalculationOutputs, error) {
 	// Check for start and end dates, inclusive
 	if date < program.FirstDailyRewards {
 		return CalculationOutputs{}, nil
@@ -591,37 +639,34 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to calculate total delegations: %w", err)
 	}
-	qualifyingDelegationsPerPool := map[string]uint64{}
-	// Any pool that has less than 1% of the pools LP tokens held at the Locking Contract
-	// will be considered an abstention and will not be eligible for rewards.
+
+	// Sum up the LP-seconds per pool, and estimate the value
 	lockedLPByPool, totalLPByPool, estimatedValueByPool, totalEstimatedValue, err := CalculateTotalLPAtSnapshot(ctx, endSlot, positions, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to calculate total LP: %w", err)
 	}
-	poolDisqualificationReasons := map[string]string{}
-	for poolIdent, locked := range lockedLPByPool {
-		pool, err := poolLookup.PoolByIdent(ctx, poolIdent)
-		if err != nil {
-			return CalculationOutputs{}, fmt.Errorf("failure to lookup pool with ident %v: %w", poolIdent, err)
-		}
-		qualified, reason := isPoolQualified(program, pool, locked)
-		if !qualified {
-			if reason != "" {
-				poolDisqualificationReasons[poolIdent] = reason
-			}
-			qualifyingDelegationsPerPool[""] += delegationByPool[poolIdent]
-		} else {
-			qualifyingDelegationsPerPool[poolIdent] += delegationByPool[poolIdent]
-		}
+
+	// Disqualify any pools that need disqualification
+	qualifyingDelegationsPerPool, poolDisqualificationReasons, err := DisqualifyPools(ctx, program, lockedLPByPool, delegationByPool, poolLookup)
+	if err != nil {
+		return CalculationOutputs{}, fmt.Errorf("failed to check for pool disqualification: %w", err)
+	}
+
+	// Sum up the delegation window for any previously used snapshots
+	delegationOverWindowByPool, err := SumDelegationWindow(program, qualifyingDelegationsPerPool, previousResults)
+	if err != nil {
+		return CalculationOutputs{}, fmt.Errorf("failed to sum delegation window: %w", err)
 	}
 
 	// If no pools are qualified (extremely degenerate case, return no earnings, and reserve those tokens for the treasury)
-	if _, ok := delegationByPool[""]; len(delegationByPool) == 0 || (ok && len(delegationByPool) == 1) {
+	if _, ok := delegationOverWindowByPool[""]; len(delegationOverWindowByPool) == 0 || (ok && len(delegationOverWindowByPool) == 1) {
 		return CalculationOutputs{
 			Timestamp:                     time.Now().Format(time.RFC3339),
 			TotalDelegations:              totalDelegation,
 			DelegationByPool:              delegationByPool,
+			NumDelegationDays:             program.ConsecutiveDelegationWindow,
 			QualifyingDelegationByPool:    qualifyingDelegationsPerPool,
+			DelegationOverWindowByPool:    delegationOverWindowByPool,
 			PoolDisqualificationReasons:   poolDisqualificationReasons,
 			LockedLPByPool:                lockedLPByPool,
 			TotalLPByPool:                 totalLPByPool,
@@ -631,7 +676,7 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	}
 
 	// The top pools ... will be eligible for yield farming rewards that day.
-	poolsReceivingEmissions, err := SelectPoolsForEmission(ctx, program, qualifyingDelegationsPerPool, poolLookup)
+	poolsReceivingEmissions, err := SelectPoolsForEmission(ctx, program, delegationOverWindowByPool, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to select pools for emission: %w", err)
 	}
@@ -685,6 +730,9 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 
 		QualifyingDelegationByPool:  qualifyingDelegationsPerPool,
 		PoolDisqualificationReasons: poolDisqualificationReasons,
+
+		NumDelegationDays:          program.ConsecutiveDelegationWindow,
+		DelegationOverWindowByPool: delegationOverWindowByPool,
 
 		PoolsReceivingEmissions: poolsReceivingEmissions,
 
