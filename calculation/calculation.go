@@ -244,7 +244,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 	if program.DisqualifiedPairs != nil {
 		for _, pair := range program.DisqualifiedPairs {
 			if pair.AssetA == pool.AssetA && pair.AssetB == pool.AssetB {
-				qualified = true
+				qualified = false
 				reason += "Pair is explicitly disqualified; "
 			}
 		}

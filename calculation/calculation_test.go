@@ -225,27 +225,71 @@ func Test_AtLeastOnePercent(t *testing.T) {
 
 func Test_QualifiedPools(t *testing.T) {
 	program := sampleProgram(500_000)
-	poolA := types.Pool{PoolIdent: "A", TotalLPTokens: 1500}
-	poolB := types.Pool{PoolIdent: "B", TotalLPTokens: 1500}
-	qualified, _ := isPoolQualified(program, poolA, 150)
-	assert.True(t, qualified)
-	qualified, _ = isPoolQualified(program, poolA, 500)
-	assert.True(t, qualified)
-	qualified, _ = isPoolQualified(program, poolA, 10)
-	assert.False(t, qualified)
+	poolA := types.Pool{PoolIdent: "A", AssetA: "A", AssetB: "X", TotalLPTokens: 1500}
+	poolB := types.Pool{PoolIdent: "B", AssetA: "B", AssetB: "X", TotalLPTokens: 1500}
+	poolC := types.Pool{PoolIdent: "C", AssetA: "C", AssetB: "Y", TotalLPTokens: 1500}
+
+	assertQualified := func(pool types.Pool, qty uint64) {
+		actual, _ := isPoolQualified(program, pool, qty)
+		assert.True(t, actual)
+	}
+	assertDisqualified := func(pool types.Pool, qty uint64) {
+		actual, _ := isPoolQualified(program, pool, qty)
+		assert.False(t, actual)
+	}
+
+	assertQualified(poolA, 150)
+	assertQualified(poolA, 500)
+	assertDisqualified(poolA, 10)
 
 	program.EligiblePools = []string{"A"}
-	qualified, _ = isPoolQualified(program, poolA, 500)
-	assert.True(t, qualified)
-	qualified, _ = isPoolQualified(program, poolB, 500)
-	assert.False(t, qualified)
+	assertQualified(poolA, 500)
+	assertDisqualified(poolB, 500)
 	program.EligiblePools = nil
 
+	program.EligibleAssets = []chainsync.AssetID{"A"}
+	assertQualified(poolA, 500)
+	assertDisqualified(poolB, 500)
+	program.EligibleAssets = nil
+
+	program.EligibleAssets = []chainsync.AssetID{"X"}
+	assertQualified(poolA, 500)
+	assertQualified(poolB, 500)
+	assertDisqualified(poolC, 500)
+	program.EligibleAssets = nil
+
+	program.EligiblePairs = []struct {
+		AssetA chainsync.AssetID
+		AssetB chainsync.AssetID
+	}{
+		{AssetA: "A", AssetB: "X"},
+	}
+	assertQualified(poolA, 500)
+	assertDisqualified(poolB, 500)
+	assertDisqualified(poolC, 500)
+	program.EligiblePairs = nil
+
 	program.DisqualifiedPools = []string{"A"}
-	qualified, _ = isPoolQualified(program, poolA, 500)
-	assert.False(t, qualified)
-	qualified, _ = isPoolQualified(program, poolB, 500)
-	assert.True(t, qualified)
+	assertDisqualified(poolA, 500)
+	assertQualified(poolB, 500)
+	program.DisqualifiedPools = nil
+
+	program.DisqualifiedAssets = []chainsync.AssetID{"X"}
+	assertDisqualified(poolA, 500)
+	assertDisqualified(poolB, 500)
+	assertQualified(poolC, 500)
+	program.DisqualifiedAssets = nil
+
+	program.DisqualifiedPairs = []struct {
+		AssetA chainsync.AssetID
+		AssetB chainsync.AssetID
+	}{
+		{AssetA: "B", AssetB: "X"},
+	}
+	assertQualified(poolA, 500)
+	assertDisqualified(poolB, 500)
+	assertQualified(poolC, 500)
+	program.DisqualifiedPairs = nil
 }
 
 func Test_CalculateTotalLP(t *testing.T) {
