@@ -183,22 +183,73 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 	if !atLeastIntegerPercent(locked, pool.TotalLPTokens, program.MinLPIntegerPercent) {
 		return false, fmt.Sprintf("less than %v%% of LP tokens locked", program.MinLPIntegerPercent)
 	}
+	// We'll use a true/false striping to allow/disallow this pool
+	// if it's in the eligible pools, or has an asset that's in the eligible assets, we'll flip it true
+	// if it's in the disqualified pools, or disqualified assets, we'll flip it back false
+	// BUT, if eligible pools and eligible assets are both nil, then we'll assume it's true unless disqualified
+	qualified := program.EligiblePools == nil && program.EligibleAssets == nil && program.EligiblePairs == nil
+	reason := ""
 	if program.EligiblePools != nil {
+		found := false
 		for _, poolIdent := range program.EligiblePools {
 			if poolIdent == pool.PoolIdent {
-				return true, ""
+				qualified = true
+				found = true
 			}
 		}
-		return false, "Program lists eligible pools, but doesn't list this pool"
-	} else if program.DisqualifiedPools != nil {
+		if !found {
+			reason += "Program lists eligible pools, but doesn't list this pool; "
+		}
+	}
+	if program.EligibleAssets != nil {
+		found := false
+		for _, assetID := range program.EligibleAssets {
+			if assetID == pool.AssetA || assetID == pool.AssetB {
+				qualified = true
+				found = true
+			}
+		}
+		if !found {
+			reason += "Program lists eligible assets, but doesn't list either asset from this pool; "
+		}
+	}
+	if program.EligiblePairs != nil {
+		found := false
+		for _, pair := range program.EligiblePairs {
+			if pair.AssetA == pool.AssetA && pair.AssetB == pool.AssetB {
+				qualified = true
+				found = true
+			}
+		}
+		if !found {
+			reason += "Program lists eligible pairs, but doesn't list these two assets as an eligible pair; "
+		}
+	}
+	if program.DisqualifiedPools != nil {
 		for _, poolIdent := range program.DisqualifiedPools {
 			if poolIdent == pool.PoolIdent {
-				return false, "Pool is explicitly disqualified"
+				qualified = false
+				reason += "Pool is explicitly disqualified; "
 			}
 		}
-		return true, ""
 	}
-	return true, ""
+	if program.DisqualifiedAssets != nil {
+		for _, assetID := range program.DisqualifiedAssets {
+			if assetID == pool.AssetA || assetID == pool.AssetB {
+				qualified = false
+				reason += "One of the assets in this pool is explicitly disqualified; "
+			}
+		}
+	}
+	if program.DisqualifiedPairs != nil {
+		for _, pair := range program.DisqualifiedPairs {
+			if pair.AssetA == pool.AssetA && pair.AssetB == pool.AssetB {
+				qualified = true
+				reason += "Pair is explicitly disqualified; "
+			}
+		}
+	}
+	return qualified, reason
 }
 
 // Check which pools are disqualified and why, and return just the qualified delegation amounts
@@ -634,7 +685,7 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	}
 
 	// To calculate the daily emissions, ... first take inventory of SUNDAE held at the Locking Contract
-	// and factory in the users delegation
+	// and factor in the users delegation
 	delegationByPool, totalDelegation, err := CalculateTotalDelegations(ctx, program, positions, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to calculate total delegations: %w", err)
