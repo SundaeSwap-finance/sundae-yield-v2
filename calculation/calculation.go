@@ -390,43 +390,64 @@ func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsBy
 	}
 	poolWeights := []Pairs{}
 	totalWeight := uint64(0)
+	emissionsByPool := map[string]uint64{}
+
+	allocatedEmissions := uint64(0)
+	// First, add in any fixed-emissions pools
+	for poolIdent, amount := range program.FixedEmissions {
+		if program.DailyEmission < amount {
+			panic("program is misconfigured, fixed emissions exceed daily emissions")
+		}
+		emissionsByPool[poolIdent] = amount
+		allocatedEmissions += amount
+		// And remove this pool from the poolsReceivingEmissionsByIdent,
+		// since it has a fixed emission
+		delete(poolsReceivingEmissionsByIdent, poolIdent)
+	}
+
+	// Now, sum up the various pool weights that are remaining
 	for poolIdent, weight := range poolsReceivingEmissionsByIdent {
 		totalWeight += weight
 		poolWeights = append(poolWeights, Pairs{PoolIdent: poolIdent, Amount: weight})
 	}
+
 	// No pool has received weight
 	// We then divide the daily emissions among these pools in proportion to their weight, rounding down
-	emissionsByPool := map[string]uint64{}
-	if totalWeight == 0 {
+	if totalWeight == 0 && len(program.FixedEmissions) == 0 {
 		return emissionsByPool
 	}
 
-	allocatedAmount := uint64(0)
+	// Then allocate the remainder according to the rules of the program
+	dynamicEmissions := program.DailyEmission - allocatedEmissions
 	for poolIdent, weight := range poolsReceivingEmissionsByIdent {
-		frac := big.NewInt(0).SetUint64(program.DailyEmission)
+		frac := big.NewInt(0).SetUint64(dynamicEmissions)
 		frac = frac.Mul(frac, big.NewInt(0).SetUint64(weight))
 		frac = frac.Div(frac, big.NewInt(0).SetUint64(totalWeight))
 		allocation := frac.Uint64()
-		allocatedAmount += allocation
+		if allocatedEmissions+allocation > program.DailyEmission {
+			panic("something went wrong: would allocate more than daily emissions")
+		}
 		emissionsByPool[poolIdent] += allocation
+		allocatedEmissions += allocation
 	}
+
 	// and distributing [diminutive tokens] among them until the daily emission is accounted for.
-	remainder := int(program.DailyEmission - allocatedAmount)
-	if remainder < 0 {
-		panic("emitted more to pools than the daily emissions, somehow")
-	} else if remainder > 0 {
+	if allocatedEmissions > program.DailyEmission {
+		panic("something went wrong with allocating emissions to pool; exceeded the daily emissions")
+	} else if allocatedEmissions != program.DailyEmission {
 		sort.Slice(poolWeights, func(i, j int) bool {
 			if poolWeights[i].Amount == poolWeights[j].Amount {
 				return poolWeights[i].PoolIdent < poolWeights[j].PoolIdent
 			}
 			return poolWeights[i].Amount > poolWeights[j].Amount
 		})
+		remainder := int(program.DailyEmission - allocatedEmissions)
 		for i := 0; i < remainder; i++ {
 			pool := poolWeights[i%len(poolWeights)]
 			emissionsByPool[pool.PoolIdent] += 1
-			allocatedAmount += 1
+			allocatedEmissions += 1
 		}
-		if allocatedAmount != program.DailyEmission {
+		if allocatedEmissions != program.DailyEmission {
 			// There's a bug in the round-robin distribution code, panic so we fix the bug
 			panic("round-robin distribution wasn't succesful")
 		}

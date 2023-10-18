@@ -34,7 +34,7 @@ type Program struct {
 	// that any pool may receive for its delegation
 	// For example, this is set to 62176.1, as 14% of 444115
 	// Any remaining emissions above this are *not* emitted, and instead rever to the treasury
-	PercentageCap uint64
+	EmissionCap uint64
 
 	// A list of pools for which a delegation is considered valid
 	EligiblePools []string
