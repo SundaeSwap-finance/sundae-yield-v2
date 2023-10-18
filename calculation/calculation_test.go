@@ -318,7 +318,7 @@ func Test_PoolForEmissions(t *testing.T) {
 	program.MaxPoolCount = 2
 	program.MaxPoolIntegerPercent = 100
 	pools := MockLookup{"A": types.Pool{PoolIdent: "A"}, "B": types.Pool{PoolIdent: "B"}, "C": types.Pool{PoolIdent: "C"}}
-	selectedPools, err := SelectPoolsForEmission(context.Background(), program, map[string]uint64{
+	selectedPools, err := SelectEligiblePoolsForEmission(context.Background(), program, map[string]uint64{
 		"A": 100,
 		"B": 200,
 		"C": 300,
@@ -327,7 +327,7 @@ func Test_PoolForEmissions(t *testing.T) {
 	assert.EqualValues(t, map[string]uint64{"C": 300, "B": 200}, selectedPools)
 
 	program.MaxPoolIntegerPercent = 30
-	selectedPools, err = SelectPoolsForEmission(context.Background(), program, map[string]uint64{
+	selectedPools, err = SelectEligiblePoolsForEmission(context.Background(), program, map[string]uint64{
 		"A": 100,
 		"B": 101,
 		"C": 202,
@@ -345,7 +345,7 @@ func Test_PoolForEmissions(t *testing.T) {
 		"E": types.Pool{},
 		"F": types.Pool{},
 	}
-	selectedPools, err = SelectPoolsForEmission(context.Background(), program, map[string]uint64{
+	selectedPools, err = SelectEligiblePoolsForEmission(context.Background(), program, map[string]uint64{
 		"A": 997,
 		"B": 998,
 		"C": 999,
@@ -362,7 +362,7 @@ func Test_PoolsForEmissions_WithNepotism(t *testing.T) {
 	program.NepotismPools = []string{"B"}
 	program.MaxPoolCount = 2
 	program.MaxPoolIntegerPercent = 20
-	selectedPools, err := SelectPoolsForEmission(context.Background(), program, map[string]uint64{
+	selectedPools, err := SelectEligiblePoolsForEmission(context.Background(), program, map[string]uint64{
 		"A": 50,
 		"B": 100,
 		"C": 200,
@@ -614,7 +614,7 @@ func Test_EmissionsToEarnings(t *testing.T) {
 }
 
 func Test_Calculate_Earnings(t *testing.T) {
-	seed := int64(1697588422052097852) //time.Now().UnixNano()
+	seed := time.Now().UnixNano()
 	rand.Seed(seed)
 	numPositions := rand.Intn(3000) + 1000
 	numOwners := rand.Intn(numPositions-1) + 1
@@ -625,23 +625,45 @@ func Test_Calculate_Earnings(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		program, calcOutputs, err := Random_Calc_Earnings(program, numPositions, numOwners, numPools, previousDays)
 		assert.Nil(t, err)
-		total := uint64(0)
+		totalEarnings := uint64(0)
 		previousDays = append(previousDays, calcOutputs)
 		for _, e := range calcOutputs.Earnings {
-			total += e.Value.Assets[program.EmittedAsset].Uint64()
+			totalEarnings += e.Value.Assets[program.EmittedAsset].Uint64()
 		}
-		if total == 0 {
+		totalFixedEmissions := uint64(0)
+		for _, amt := range program.FixedEmissions {
+			totalFixedEmissions += amt
+		}
+		everyEligiblePoolReceivingFixedEmissions := true
+		for pool := range calcOutputs.PoolsEligibleForEmissions {
+			if _, ok := program.FixedEmissions[pool]; !ok {
+				everyEligiblePoolReceivingFixedEmissions = false
+				break
+			}
+		}
+		// Checking the results is a bit nuanced, because of the randomly generated cases
+		if totalEarnings == 0 {
+			// If the total is zero, then we better have zero earnings
 			assert.Empty(t, calcOutputs.Earnings)
-		} else if program.EmissionCap == 0 {
-			if total != program.DailyEmission {
-				fmt.Printf("seed: %v\n", seed)
+		} else if everyEligiblePoolReceivingFixedEmissions || program.EmissionCap > 0 {
+			// If every eligible pool was assigned fixed emissions, then we had
+			// no pools leftover to distribute the remaining emissions to, so we can only check that it's less than the daily emissions
+			// this is also true if we have an emission cap, since that may have truncated some rewards
+			assert.LessOrEqual(t, totalEarnings, program.DailyEmission)
+			// If we do have an emission cap, then check that each pool receiving emissions got correctly capped
+			if program.EmissionCap > 0 {
+				for _, amt := range calcOutputs.EmissionsByPool {
+					assert.LessOrEqual(t, amt, program.EmissionCap)
+				}
 			}
-			assert.Equal(t, total, program.DailyEmission)
+			// And if every eligible pool was already assigned fixed emissions, check that that total is at least correct
+			if everyEligiblePoolReceivingFixedEmissions {
+				assert.Equal(t, totalEarnings, totalFixedEmissions)
+			}
 		} else {
-			assert.LessOrEqual(t, total, program.DailyEmission)
-			for _, amt := range calcOutputs.EmissionsByPool {
-				assert.LessOrEqual(t, amt, program.EmissionCap)
-			}
+			// Otherwise, if we didn't have a cap on emissions, *and* there was at least one eligible pool to soak up the remainder
+			// so in that case, every coin should be accounted for
+			assert.Equal(t, totalEarnings, program.DailyEmission)
 		}
 	}
 }

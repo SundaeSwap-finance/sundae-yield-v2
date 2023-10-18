@@ -294,7 +294,7 @@ func SumDelegationWindow(program types.Program, qualifyingDelegationsPerPool map
 }
 
 // Select the top pools according to the program criteria
-func SelectPoolsForEmission(
+func SelectEligiblePoolsForEmission(
 	ctx context.Context,
 	program types.Program,
 	delegationsByPool map[string]uint64,
@@ -382,7 +382,7 @@ func SelectPoolsForEmission(
 }
 
 // Split the daily emissions of the program among a set of pools that have been chosen for emissions
-func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsByIdent map[string]uint64) map[string]uint64 {
+func DistributeEmissionsToPools(program types.Program, poolsEligibleForEmissionsByIdent map[string]uint64) map[string]uint64 {
 	// We'll need to loop over pools round-robin by largest value; ordering of maps is non-deterministic
 	type Pairs struct {
 		PoolIdent string
@@ -400,13 +400,15 @@ func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsBy
 		}
 		emissionsByPool[poolIdent] = amount
 		allocatedEmissions += amount
-		// And remove this pool from the poolsReceivingEmissionsByIdent,
-		// since it has a fixed emission
-		delete(poolsReceivingEmissionsByIdent, poolIdent)
 	}
 
 	// Now, sum up the various pool weights that are remaining
-	for poolIdent, weight := range poolsReceivingEmissionsByIdent {
+	for poolIdent, weight := range poolsEligibleForEmissionsByIdent {
+		// Skip over pools that are receiving a fixed emission
+		if _, ok := program.FixedEmissions[poolIdent]; ok {
+			continue
+		}
+
 		totalWeight += weight
 		poolWeights = append(poolWeights, Pairs{PoolIdent: poolIdent, Amount: weight})
 	}
@@ -419,7 +421,11 @@ func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsBy
 
 	// Then allocate the remainder according to the rules of the program
 	dynamicEmissions := program.DailyEmission - allocatedEmissions
-	for poolIdent, weight := range poolsReceivingEmissionsByIdent {
+	for poolIdent, weight := range poolsEligibleForEmissionsByIdent {
+		// Skip over pools that receive a fixed emission
+		if _, ok := program.FixedEmissions[poolIdent]; ok {
+			continue
+		}
 		frac := big.NewInt(0).SetUint64(dynamicEmissions)
 		frac = frac.Mul(frac, big.NewInt(0).SetUint64(weight))
 		frac = frac.Div(frac, big.NewInt(0).SetUint64(totalWeight))
@@ -698,7 +704,7 @@ type CalculationOutputs struct {
 	NumDelegationDays          int
 	DelegationOverWindowByPool map[string]uint64
 
-	PoolsReceivingEmissions map[string]uint64
+	PoolsEligibleForEmissions map[string]uint64
 
 	LockedLPByPool map[string]uint64
 	TotalLPByPool  map[string]uint64
@@ -770,13 +776,13 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	}
 
 	// The top pools ... will be eligible for yield farming rewards that day.
-	poolsReceivingEmissions, err := SelectPoolsForEmission(ctx, program, delegationOverWindowByPool, poolLookup)
+	poolsEligibleForEmissions, err := SelectEligiblePoolsForEmission(ctx, program, delegationOverWindowByPool, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to select pools for emission: %w", err)
 	}
 
 	// We then divide the daily emissions among these pools ...
-	rawEmissionsByPool := DistributeEmissionsToPools(program, poolsReceivingEmissions)
+	rawEmissionsByPool := DistributeEmissionsToPools(program, poolsEligibleForEmissions)
 	emissionsByPool := TruncateEmissions(program, rawEmissionsByPool)
 	emissionsByAsset, err := RegroupByAsset(ctx, emissionsByPool, poolLookup)
 	if err != nil {
@@ -826,7 +832,7 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 		NumDelegationDays:          program.ConsecutiveDelegationWindow,
 		DelegationOverWindowByPool: delegationOverWindowByPool,
 
-		PoolsReceivingEmissions: poolsReceivingEmissions,
+		PoolsEligibleForEmissions: poolsEligibleForEmissions,
 
 		LockedLPByPool: lockedLPByPool,
 		TotalLPByPool:  totalLPByPool,
