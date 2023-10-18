@@ -454,16 +454,27 @@ func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsBy
 	}
 
 	// Now check to make sure none of these pools (other than the fixed emissions) exceed the cap on daily emissions per pool
-	if program.EmissionCap != 0 {
-		for pool, amount := range emissionsByPool {
-			_, ok := program.FixedEmissions[pool]
-			if !ok && amount > program.EmissionCap {
-				emissionsByPool[pool] = program.EmissionCap
-			}
+
+	return emissionsByPool
+}
+
+// Truncate the emissions to the maximum emission cap
+func TruncateEmissions(program types.Program, emissionsByPool map[string]uint64) map[string]uint64 {
+	if program.EmissionCap == 0 {
+		return emissionsByPool
+	}
+
+	truncatedEmissions := map[string]uint64{}
+	for pool, amount := range emissionsByPool {
+		_, ok := program.FixedEmissions[pool]
+		if !ok && amount > program.EmissionCap {
+			truncatedEmissions[pool] = program.EmissionCap
+		} else {
+			truncatedEmissions[pool] = amount
 		}
 	}
 
-	return emissionsByPool
+	return truncatedEmissions
 }
 
 // Compute the total LP token days that each owner has; We multiply the LP tokens by seconds they were locked, and then divide by 86400.
@@ -695,8 +706,9 @@ type CalculationOutputs struct {
 	EstimatedLockedLovelace       uint64
 	EstimatedLockedLovelaceByPool map[string]uint64
 
-	TotalEmissions  uint64
-	EmissionsByPool map[string]uint64
+	TotalEmissions             uint64
+	UntruncatedEmissionsByPool map[string]uint64
+	EmissionsByPool            map[string]uint64
 
 	EmissionsByOwner map[string]uint64
 
@@ -764,7 +776,9 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	}
 
 	// We then divide the daily emissions among these pools ...
-	emissionsByAsset, err := RegroupByAsset(ctx, DistributeEmissionsToPools(program, poolsReceivingEmissions), poolLookup)
+	rawEmissionsByPool := DistributeEmissionsToPools(program, poolsReceivingEmissions)
+	emissionsByPool := TruncateEmissions(program, rawEmissionsByPool)
+	emissionsByAsset, err := RegroupByAsset(ctx, emissionsByPool, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to regroup emissions by asset: %w", err)
 	}
@@ -780,10 +794,6 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	}
 
 	// Find the pool that we should use for price reference, so we can estimate the ADA value of what was emitted
-	emissionsByPool, err := RegroupByPool(ctx, emissionsByAsset, poolLookup)
-	if err != nil {
-		return CalculationOutputs{}, fmt.Errorf("failed to regroup emissions by pool: %w", err)
-	}
 	var emittedLovelaceValue uint64
 	emittedLovelaceValueByPool := map[string]uint64{}
 	if program.ReferencePool != "" {
@@ -824,8 +834,9 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 		EstimatedLockedLovelace:       totalEstimatedValue,
 		EstimatedLockedLovelaceByPool: estimatedValueByPool,
 
-		TotalEmissions:  program.DailyEmission,
-		EmissionsByPool: emissionsByPool,
+		TotalEmissions:             program.DailyEmission,
+		UntruncatedEmissionsByPool: rawEmissionsByPool,
+		EmissionsByPool:            emissionsByPool,
 
 		EmissionsByOwner: perOwnerTotal,
 

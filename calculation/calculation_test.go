@@ -400,13 +400,20 @@ func Test_EmissionsToPools(t *testing.T) {
 		"C": 1000,
 	})
 	assert.EqualValues(t, map[string]uint64{"A": 166_333_333_333, "B": 332_666_666_667, "C": 1_000_000_000}, emissions)
+}
 
+func Test_TruncateEmissions(t *testing.T) {
+	program := sampleProgram(500_000_000_000)
 	program.EmissionCap = 200_000_000_000
-	emissions = DistributeEmissionsToPools(program, map[string]uint64{
+	program.FixedEmissions = map[string]uint64{
+		"C": 1_000_000_000,
+	}
+	rawEmissions := DistributeEmissionsToPools(program, map[string]uint64{
 		"A": 1000,
 		"B": 2000,
 	})
-	assert.EqualValues(t, map[string]uint64{"A": 166_333_333_333, "B": 200_000_000_000, "C": 1_000_000_000}, emissions)
+	truncatedEmissions := TruncateEmissions(program, rawEmissions)
+	assert.EqualValues(t, map[string]uint64{"A": 166_333_333_333, "B": 200_000_000_000, "C": 1_000_000_000}, truncatedEmissions)
 }
 
 func Test_OwnerByLPAndAsset(t *testing.T) {
