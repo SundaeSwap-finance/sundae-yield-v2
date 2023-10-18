@@ -413,7 +413,7 @@ func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsBy
 
 	// No pool has received weight
 	// We then divide the daily emissions among these pools in proportion to their weight, rounding down
-	if totalWeight == 0 && len(program.FixedEmissions) == 0 {
+	if totalWeight == 0 {
 		return emissionsByPool
 	}
 
@@ -450,6 +450,16 @@ func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsBy
 		if allocatedEmissions != program.DailyEmission {
 			// There's a bug in the round-robin distribution code, panic so we fix the bug
 			panic("round-robin distribution wasn't succesful")
+		}
+	}
+
+	// Now check to make sure none of these pools (other than the fixed emissions) exceed the cap on daily emissions per pool
+	if program.EmissionCap != 0 {
+		for pool, amount := range emissionsByPool {
+			_, ok := program.FixedEmissions[pool]
+			if !ok && amount > program.EmissionCap {
+				emissionsByPool[pool] = program.EmissionCap
+			}
 		}
 	}
 

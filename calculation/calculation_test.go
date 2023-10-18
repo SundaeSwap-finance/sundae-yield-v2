@@ -400,6 +400,13 @@ func Test_EmissionsToPools(t *testing.T) {
 		"C": 1000,
 	})
 	assert.EqualValues(t, map[string]uint64{"A": 166_333_333_333, "B": 332_666_666_667, "C": 1_000_000_000}, emissions)
+
+	program.EmissionCap = 200_000_000_000
+	emissions = DistributeEmissionsToPools(program, map[string]uint64{
+		"A": 1000,
+		"B": 2000,
+	})
+	assert.EqualValues(t, map[string]uint64{"A": 166_333_333_333, "B": 200_000_000_000, "C": 1_000_000_000}, emissions)
 }
 
 func Test_OwnerByLPAndAsset(t *testing.T) {
@@ -600,6 +607,8 @@ func Test_EmissionsToEarnings(t *testing.T) {
 }
 
 func Test_Calculate_Earnings(t *testing.T) {
+	seed := int64(1697588422052097852) //time.Now().UnixNano()
+	rand.Seed(seed)
 	numPositions := rand.Intn(3000) + 1000
 	numOwners := rand.Intn(numPositions-1) + 1
 	numPools := rand.Intn(300) + 100
@@ -616,8 +625,16 @@ func Test_Calculate_Earnings(t *testing.T) {
 		}
 		if total == 0 {
 			assert.Empty(t, calcOutputs.Earnings)
-		} else {
+		} else if program.EmissionCap == 0 {
+			if total != program.DailyEmission {
+				fmt.Printf("seed: %v\n", seed)
+			}
 			assert.Equal(t, total, program.DailyEmission)
+		} else {
+			assert.LessOrEqual(t, total, program.DailyEmission)
+			for _, amt := range calcOutputs.EmissionsByPool {
+				assert.LessOrEqual(t, amt, program.EmissionCap)
+			}
 		}
 	}
 }
@@ -680,6 +697,7 @@ func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPoo
 		positions = append(positions, position)
 	}
 
+	program.FixedEmissions = map[string]uint64{}
 	for i := 0; i < numPools; i++ {
 		poolIdent := fmt.Sprintf("Pool_%v", i)
 		pools[poolIdent] = types.Pool{
@@ -687,6 +705,12 @@ func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPoo
 			TotalLPTokens: lockedByPool[i] + uint64(rand.Int63n(100_000_000_000)),
 			LPAsset:       chainsync.AssetID(fmt.Sprintf("LP_%v", i)),
 		}
+		if rand.Intn(100) == 0 && len(program.FixedEmissions) < 10 {
+			program.FixedEmissions[poolIdent] = program.DailyEmission / uint64(numPools)
+		}
+	}
+	if rand.Intn(10) == 0 {
+		program.EmissionCap = program.DailyEmission / 5
 	}
 
 	window := []CalculationOutputs{}
