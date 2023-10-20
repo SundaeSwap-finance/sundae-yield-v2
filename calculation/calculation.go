@@ -184,9 +184,9 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 		return false, fmt.Sprintf("less than %v%% of LP tokens locked", program.MinLPIntegerPercent)
 	}
 	// We'll use a true/false striping to allow/disallow this pool
-	// if it's in the eligible pools, or has an asset that's in the eligible assets, we'll flip it true
-	// if it's in the disqualified pools, or disqualified assets, we'll flip it back false
-	// BUT, if eligible pools and eligible assets are both nil, then we'll assume it's true unless disqualified
+	// if it's covered by one of the "eligible" criteria, we'll flip it true
+	// if it's covered by one of the "disqualified" criteria, we'll flip it back false
+	// BUT, if the "eligible" criteria lists are all null, then every pool starts eligible, so this needs to start true
 	qualified := program.EligiblePools == nil && program.EligibleAssets == nil && program.EligiblePairs == nil
 	reason := ""
 	if program.EligiblePools != nil {
