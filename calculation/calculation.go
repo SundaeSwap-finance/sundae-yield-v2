@@ -195,6 +195,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 			if poolIdent == pool.PoolIdent {
 				qualified = true
 				found = true
+				break
 			}
 		}
 		if !found {
@@ -207,6 +208,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 			if assetID == pool.AssetA || assetID == pool.AssetB {
 				qualified = true
 				found = true
+				break
 			}
 		}
 		if !found {
@@ -219,6 +221,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 			if pair.AssetA == pool.AssetA && pair.AssetB == pool.AssetB {
 				qualified = true
 				found = true
+				break
 			}
 		}
 		if !found {
@@ -230,6 +233,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 			if poolIdent == pool.PoolIdent {
 				qualified = false
 				reason += "Pool is explicitly disqualified; "
+				break
 			}
 		}
 	}
@@ -238,6 +242,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 			if assetID == pool.AssetA || assetID == pool.AssetB {
 				qualified = false
 				reason += "One of the assets in this pool is explicitly disqualified; "
+				break
 			}
 		}
 	}
@@ -246,6 +251,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 			if pair.AssetA == pool.AssetA && pair.AssetB == pool.AssetB {
 				qualified = false
 				reason += "Pair is explicitly disqualified; "
+				break
 			}
 		}
 	}
