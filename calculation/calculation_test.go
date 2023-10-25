@@ -225,27 +225,71 @@ func Test_AtLeastOnePercent(t *testing.T) {
 
 func Test_QualifiedPools(t *testing.T) {
 	program := sampleProgram(500_000)
-	poolA := types.Pool{PoolIdent: "A", TotalLPTokens: 1500}
-	poolB := types.Pool{PoolIdent: "B", TotalLPTokens: 1500}
-	qualified, _ := isPoolQualified(program, poolA, 150)
-	assert.True(t, qualified)
-	qualified, _ = isPoolQualified(program, poolA, 500)
-	assert.True(t, qualified)
-	qualified, _ = isPoolQualified(program, poolA, 10)
-	assert.False(t, qualified)
+	poolA := types.Pool{PoolIdent: "A", AssetA: "A", AssetB: "X", TotalLPTokens: 1500}
+	poolB := types.Pool{PoolIdent: "B", AssetA: "B", AssetB: "X", TotalLPTokens: 1500}
+	poolC := types.Pool{PoolIdent: "C", AssetA: "C", AssetB: "Y", TotalLPTokens: 1500}
+
+	assertQualified := func(pool types.Pool, qty uint64) {
+		actual, _ := isPoolQualified(program, pool, qty)
+		assert.True(t, actual)
+	}
+	assertDisqualified := func(pool types.Pool, qty uint64) {
+		actual, _ := isPoolQualified(program, pool, qty)
+		assert.False(t, actual)
+	}
+
+	assertQualified(poolA, 150)
+	assertQualified(poolA, 500)
+	assertDisqualified(poolA, 10)
 
 	program.EligiblePools = []string{"A"}
-	qualified, _ = isPoolQualified(program, poolA, 500)
-	assert.True(t, qualified)
-	qualified, _ = isPoolQualified(program, poolB, 500)
-	assert.False(t, qualified)
+	assertQualified(poolA, 500)
+	assertDisqualified(poolB, 500)
 	program.EligiblePools = nil
 
+	program.EligibleAssets = []chainsync.AssetID{"A"}
+	assertQualified(poolA, 500)
+	assertDisqualified(poolB, 500)
+	program.EligibleAssets = nil
+
+	program.EligibleAssets = []chainsync.AssetID{"X"}
+	assertQualified(poolA, 500)
+	assertQualified(poolB, 500)
+	assertDisqualified(poolC, 500)
+	program.EligibleAssets = nil
+
+	program.EligiblePairs = []struct {
+		AssetA chainsync.AssetID
+		AssetB chainsync.AssetID
+	}{
+		{AssetA: "A", AssetB: "X"},
+	}
+	assertQualified(poolA, 500)
+	assertDisqualified(poolB, 500)
+	assertDisqualified(poolC, 500)
+	program.EligiblePairs = nil
+
 	program.DisqualifiedPools = []string{"A"}
-	qualified, _ = isPoolQualified(program, poolA, 500)
-	assert.False(t, qualified)
-	qualified, _ = isPoolQualified(program, poolB, 500)
-	assert.True(t, qualified)
+	assertDisqualified(poolA, 500)
+	assertQualified(poolB, 500)
+	program.DisqualifiedPools = nil
+
+	program.DisqualifiedAssets = []chainsync.AssetID{"X"}
+	assertDisqualified(poolA, 500)
+	assertDisqualified(poolB, 500)
+	assertQualified(poolC, 500)
+	program.DisqualifiedAssets = nil
+
+	program.DisqualifiedPairs = []struct {
+		AssetA chainsync.AssetID
+		AssetB chainsync.AssetID
+	}{
+		{AssetA: "B", AssetB: "X"},
+	}
+	assertQualified(poolA, 500)
+	assertDisqualified(poolB, 500)
+	assertQualified(poolC, 500)
+	program.DisqualifiedPairs = nil
 }
 
 func Test_CalculateTotalLP(t *testing.T) {
@@ -274,7 +318,7 @@ func Test_PoolForEmissions(t *testing.T) {
 	program.MaxPoolCount = 2
 	program.MaxPoolIntegerPercent = 100
 	pools := MockLookup{"A": types.Pool{PoolIdent: "A"}, "B": types.Pool{PoolIdent: "B"}, "C": types.Pool{PoolIdent: "C"}}
-	selectedPools, err := SelectPoolsForEmission(context.Background(), program, map[string]uint64{
+	selectedPools, err := SelectEligiblePoolsForEmission(context.Background(), program, map[string]uint64{
 		"A": 100,
 		"B": 200,
 		"C": 300,
@@ -283,7 +327,7 @@ func Test_PoolForEmissions(t *testing.T) {
 	assert.EqualValues(t, map[string]uint64{"C": 300, "B": 200}, selectedPools)
 
 	program.MaxPoolIntegerPercent = 30
-	selectedPools, err = SelectPoolsForEmission(context.Background(), program, map[string]uint64{
+	selectedPools, err = SelectEligiblePoolsForEmission(context.Background(), program, map[string]uint64{
 		"A": 100,
 		"B": 101,
 		"C": 202,
@@ -301,7 +345,7 @@ func Test_PoolForEmissions(t *testing.T) {
 		"E": types.Pool{},
 		"F": types.Pool{},
 	}
-	selectedPools, err = SelectPoolsForEmission(context.Background(), program, map[string]uint64{
+	selectedPools, err = SelectEligiblePoolsForEmission(context.Background(), program, map[string]uint64{
 		"A": 997,
 		"B": 998,
 		"C": 999,
@@ -318,7 +362,7 @@ func Test_PoolsForEmissions_WithNepotism(t *testing.T) {
 	program.NepotismPools = []string{"B"}
 	program.MaxPoolCount = 2
 	program.MaxPoolIntegerPercent = 20
-	selectedPools, err := SelectPoolsForEmission(context.Background(), program, map[string]uint64{
+	selectedPools, err := SelectEligiblePoolsForEmission(context.Background(), program, map[string]uint64{
 		"A": 50,
 		"B": 100,
 		"C": 200,
@@ -346,6 +390,30 @@ func Test_EmissionsToPools(t *testing.T) {
 		"B": 2000,
 	})
 	assert.EqualValues(t, map[string]uint64{"A": 166_666_666_666, "B": 333_333_333_334}, emissions)
+
+	program.FixedEmissions = map[string]uint64{
+		"C": 1_000_000_000,
+	}
+	emissions = DistributeEmissionsToPools(program, map[string]uint64{
+		"A": 1000,
+		"B": 2000,
+		"C": 1000,
+	})
+	assert.EqualValues(t, map[string]uint64{"A": 166_333_333_333, "B": 332_666_666_667, "C": 1_000_000_000}, emissions)
+}
+
+func Test_TruncateEmissions(t *testing.T) {
+	program := sampleProgram(500_000_000_000)
+	program.EmissionCap = 200_000_000_000
+	program.FixedEmissions = map[string]uint64{
+		"C": 1_000_000_000,
+	}
+	rawEmissions := DistributeEmissionsToPools(program, map[string]uint64{
+		"A": 1000,
+		"B": 2000,
+	})
+	truncatedEmissions := TruncateEmissions(program, rawEmissions)
+	assert.EqualValues(t, map[string]uint64{"A": 166_333_333_333, "B": 200_000_000_000, "C": 1_000_000_000}, truncatedEmissions)
 }
 
 func Test_OwnerByLPAndAsset(t *testing.T) {
@@ -546,6 +614,8 @@ func Test_EmissionsToEarnings(t *testing.T) {
 }
 
 func Test_Calculate_Earnings(t *testing.T) {
+	seed := time.Now().UnixNano()
+	rand.Seed(seed)
 	numPositions := rand.Intn(3000) + 1000
 	numOwners := rand.Intn(numPositions-1) + 1
 	numPools := rand.Intn(300) + 100
@@ -555,15 +625,45 @@ func Test_Calculate_Earnings(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		program, calcOutputs, err := Random_Calc_Earnings(program, numPositions, numOwners, numPools, previousDays)
 		assert.Nil(t, err)
-		total := uint64(0)
+		totalEarnings := uint64(0)
 		previousDays = append(previousDays, calcOutputs)
 		for _, e := range calcOutputs.Earnings {
-			total += e.Value.Assets[program.EmittedAsset].Uint64()
+			totalEarnings += e.Value.Assets[program.EmittedAsset].Uint64()
 		}
-		if total == 0 {
+		totalFixedEmissions := uint64(0)
+		for _, amt := range program.FixedEmissions {
+			totalFixedEmissions += amt
+		}
+		everyEligiblePoolReceivingFixedEmissions := true
+		for pool := range calcOutputs.PoolsEligibleForEmissions {
+			if _, ok := program.FixedEmissions[pool]; !ok {
+				everyEligiblePoolReceivingFixedEmissions = false
+				break
+			}
+		}
+		// Checking the results is a bit nuanced, because of the randomly generated cases
+		if totalEarnings == 0 {
+			// If the total is zero, then we better have zero earnings
 			assert.Empty(t, calcOutputs.Earnings)
+		} else if everyEligiblePoolReceivingFixedEmissions || program.EmissionCap > 0 {
+			// If every eligible pool was assigned fixed emissions, then we had
+			// no pools leftover to distribute the remaining emissions to, so we can only check that it's less than the daily emissions
+			// this is also true if we have an emission cap, since that may have truncated some rewards
+			assert.LessOrEqual(t, totalEarnings, program.DailyEmission)
+			// If we do have an emission cap, then check that each pool receiving emissions got correctly capped
+			if program.EmissionCap > 0 {
+				for _, amt := range calcOutputs.EmissionsByPool {
+					assert.LessOrEqual(t, amt, program.EmissionCap)
+				}
+			}
+			// And if every eligible pool was already assigned fixed emissions, check that that total is at least correct
+			if everyEligiblePoolReceivingFixedEmissions {
+				assert.Equal(t, totalEarnings, totalFixedEmissions)
+			}
 		} else {
-			assert.Equal(t, total, program.DailyEmission)
+			// Otherwise, if we didn't have a cap on emissions, *and* there was at least one eligible pool to soak up the remainder
+			// so in that case, every coin should be accounted for
+			assert.Equal(t, totalEarnings, program.DailyEmission)
 		}
 	}
 }
@@ -626,6 +726,7 @@ func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPoo
 		positions = append(positions, position)
 	}
 
+	program.FixedEmissions = map[string]uint64{}
 	for i := 0; i < numPools; i++ {
 		poolIdent := fmt.Sprintf("Pool_%v", i)
 		pools[poolIdent] = types.Pool{
@@ -633,6 +734,12 @@ func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPoo
 			TotalLPTokens: lockedByPool[i] + uint64(rand.Int63n(100_000_000_000)),
 			LPAsset:       chainsync.AssetID(fmt.Sprintf("LP_%v", i)),
 		}
+		if rand.Intn(100) == 0 && len(program.FixedEmissions) < 10 {
+			program.FixedEmissions[poolIdent] = program.DailyEmission / uint64(numPools)
+		}
+	}
+	if rand.Intn(10) == 0 {
+		program.EmissionCap = program.DailyEmission / 5
 	}
 
 	window := []CalculationOutputs{}

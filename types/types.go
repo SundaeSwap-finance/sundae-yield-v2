@@ -25,9 +25,37 @@ type Program struct {
 
 	EarningExpiration *time.Duration
 
-	EligiblePools     []string
+	// Any pools that received a fixed emission
+	// for example, pool 08 receives exactly 133234.5 tokens per day
+	// (30% of the daily emissions of 444115)
+	FixedEmissions map[string]uint64
+
+	// The maximum emissions, outside of the fixed emissions above,
+	// that any pool may receive for its delegation
+	// For example, this is set to 62176.1, as 14% of 444115
+	// Any remaining emissions above this are *not* emitted, and instead rever to the treasury
+	EmissionCap uint64
+
+	// A list of pools for which a delegation is considered valid
+	EligiblePools []string
+	// A list of assets for which *any* pools will be considered valid
+	EligibleAssets []chainsync.AssetID
+	// A list of assets, for which *any* pool with these two assets will be considered valid
+	EligiblePairs []struct {
+		AssetA chainsync.AssetID
+		AssetB chainsync.AssetID
+	}
+	// A list of pools for which delegation will be ignored
 	DisqualifiedPools []string
-	NepotismPools     []string
+	// A list of assets, for which *any* pools will be considered invalid
+	DisqualifiedAssets []chainsync.AssetID
+	// A list of assets, for which *any* pool with these two assets will be considered invalid
+	DisqualifiedPairs []struct {
+		AssetA chainsync.AssetID
+		AssetB chainsync.AssetID
+	}
+	// A list of pools which are automatically considered to have crossed the percentile threshold
+	NepotismPools []string
 
 	MinLPIntegerPercent   int
 	MaxPoolCount          int

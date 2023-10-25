@@ -183,22 +183,79 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 	if !atLeastIntegerPercent(locked, pool.TotalLPTokens, program.MinLPIntegerPercent) {
 		return false, fmt.Sprintf("less than %v%% of LP tokens locked", program.MinLPIntegerPercent)
 	}
+	// We'll use a true/false striping to allow/disallow this pool
+	// if it's covered by one of the "eligible" criteria, we'll flip it true
+	// if it's covered by one of the "disqualified" criteria, we'll flip it back false
+	// BUT, if the "eligible" criteria lists are all null, then every pool starts eligible, so this needs to start true
+	qualified := program.EligiblePools == nil && program.EligibleAssets == nil && program.EligiblePairs == nil
+	reason := ""
 	if program.EligiblePools != nil {
+		found := false
 		for _, poolIdent := range program.EligiblePools {
 			if poolIdent == pool.PoolIdent {
-				return true, ""
+				qualified = true
+				found = true
+				break
 			}
 		}
-		return false, "Program lists eligible pools, but doesn't list this pool"
-	} else if program.DisqualifiedPools != nil {
+		if !found {
+			reason += "Program lists eligible pools, but doesn't list this pool; "
+		}
+	}
+	if program.EligibleAssets != nil {
+		found := false
+		for _, assetID := range program.EligibleAssets {
+			if assetID == pool.AssetA || assetID == pool.AssetB {
+				qualified = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			reason += "Program lists eligible assets, but doesn't list either asset from this pool; "
+		}
+	}
+	if program.EligiblePairs != nil {
+		found := false
+		for _, pair := range program.EligiblePairs {
+			if pair.AssetA == pool.AssetA && pair.AssetB == pool.AssetB {
+				qualified = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			reason += "Program lists eligible pairs, but doesn't list these two assets as an eligible pair; "
+		}
+	}
+	if program.DisqualifiedPools != nil {
 		for _, poolIdent := range program.DisqualifiedPools {
 			if poolIdent == pool.PoolIdent {
-				return false, "Pool is explicitly disqualified"
+				qualified = false
+				reason += "Pool is explicitly disqualified; "
+				break
 			}
 		}
-		return true, ""
 	}
-	return true, ""
+	if program.DisqualifiedAssets != nil {
+		for _, assetID := range program.DisqualifiedAssets {
+			if assetID == pool.AssetA || assetID == pool.AssetB {
+				qualified = false
+				reason += "One of the assets in this pool is explicitly disqualified; "
+				break
+			}
+		}
+	}
+	if program.DisqualifiedPairs != nil {
+		for _, pair := range program.DisqualifiedPairs {
+			if pair.AssetA == pool.AssetA && pair.AssetB == pool.AssetB {
+				qualified = false
+				reason += "Pair is explicitly disqualified; "
+				break
+			}
+		}
+	}
+	return qualified, reason
 }
 
 // Check which pools are disqualified and why, and return just the qualified delegation amounts
@@ -243,7 +300,7 @@ func SumDelegationWindow(program types.Program, qualifyingDelegationsPerPool map
 }
 
 // Select the top pools according to the program criteria
-func SelectPoolsForEmission(
+func SelectEligiblePoolsForEmission(
 	ctx context.Context,
 	program types.Program,
 	delegationsByPool map[string]uint64,
@@ -331,7 +388,7 @@ func SelectPoolsForEmission(
 }
 
 // Split the daily emissions of the program among a set of pools that have been chosen for emissions
-func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsByIdent map[string]uint64) map[string]uint64 {
+func DistributeEmissionsToPools(program types.Program, poolsEligibleForEmissionsByIdent map[string]uint64) map[string]uint64 {
 	// We'll need to loop over pools round-robin by largest value; ordering of maps is non-deterministic
 	type Pairs struct {
 		PoolIdent string
@@ -339,49 +396,97 @@ func DistributeEmissionsToPools(program types.Program, poolsReceivingEmissionsBy
 	}
 	poolWeights := []Pairs{}
 	totalWeight := uint64(0)
-	for poolIdent, weight := range poolsReceivingEmissionsByIdent {
+	emissionsByPool := map[string]uint64{}
+
+	allocatedEmissions := uint64(0)
+	// First, add in any fixed-emissions pools
+	for poolIdent, amount := range program.FixedEmissions {
+		if program.DailyEmission < amount {
+			panic("program is misconfigured, fixed emissions exceed daily emissions")
+		}
+		emissionsByPool[poolIdent] = amount
+		allocatedEmissions += amount
+	}
+
+	// Now, sum up the various pool weights that are remaining
+	for poolIdent, weight := range poolsEligibleForEmissionsByIdent {
+		// Skip over pools that are receiving a fixed emission
+		if _, ok := program.FixedEmissions[poolIdent]; ok {
+			continue
+		}
+
 		totalWeight += weight
 		poolWeights = append(poolWeights, Pairs{PoolIdent: poolIdent, Amount: weight})
 	}
+
 	// No pool has received weight
 	// We then divide the daily emissions among these pools in proportion to their weight, rounding down
-	emissionsByPool := map[string]uint64{}
 	if totalWeight == 0 {
 		return emissionsByPool
 	}
 
-	allocatedAmount := uint64(0)
-	for poolIdent, weight := range poolsReceivingEmissionsByIdent {
-		frac := big.NewInt(0).SetUint64(program.DailyEmission)
+	// Then allocate the remainder according to the rules of the program
+	dynamicEmissions := program.DailyEmission - allocatedEmissions
+	for poolIdent, weight := range poolsEligibleForEmissionsByIdent {
+		// Skip over pools that receive a fixed emission
+		if _, ok := program.FixedEmissions[poolIdent]; ok {
+			continue
+		}
+		frac := big.NewInt(0).SetUint64(dynamicEmissions)
 		frac = frac.Mul(frac, big.NewInt(0).SetUint64(weight))
 		frac = frac.Div(frac, big.NewInt(0).SetUint64(totalWeight))
 		allocation := frac.Uint64()
-		allocatedAmount += allocation
+		if allocatedEmissions+allocation > program.DailyEmission {
+			panic("something went wrong: would allocate more than daily emissions")
+		}
 		emissionsByPool[poolIdent] += allocation
+		allocatedEmissions += allocation
 	}
+
 	// and distributing [diminutive tokens] among them until the daily emission is accounted for.
-	remainder := int(program.DailyEmission - allocatedAmount)
-	if remainder < 0 {
-		panic("emitted more to pools than the daily emissions, somehow")
-	} else if remainder > 0 {
+	if allocatedEmissions > program.DailyEmission {
+		panic("something went wrong with allocating emissions to pool; exceeded the daily emissions")
+	} else if allocatedEmissions != program.DailyEmission {
 		sort.Slice(poolWeights, func(i, j int) bool {
 			if poolWeights[i].Amount == poolWeights[j].Amount {
 				return poolWeights[i].PoolIdent < poolWeights[j].PoolIdent
 			}
 			return poolWeights[i].Amount > poolWeights[j].Amount
 		})
+		remainder := int(program.DailyEmission - allocatedEmissions)
 		for i := 0; i < remainder; i++ {
 			pool := poolWeights[i%len(poolWeights)]
 			emissionsByPool[pool.PoolIdent] += 1
-			allocatedAmount += 1
+			allocatedEmissions += 1
 		}
-		if allocatedAmount != program.DailyEmission {
+		if allocatedEmissions != program.DailyEmission {
 			// There's a bug in the round-robin distribution code, panic so we fix the bug
 			panic("round-robin distribution wasn't succesful")
 		}
 	}
 
+	// Now check to make sure none of these pools (other than the fixed emissions) exceed the cap on daily emissions per pool
+
 	return emissionsByPool
+}
+
+// Truncate the emissions to the maximum emission cap
+func TruncateEmissions(program types.Program, emissionsByPool map[string]uint64) map[string]uint64 {
+	if program.EmissionCap == 0 {
+		return emissionsByPool
+	}
+
+	truncatedEmissions := map[string]uint64{}
+	for pool, amount := range emissionsByPool {
+		_, ok := program.FixedEmissions[pool]
+		if !ok && amount > program.EmissionCap {
+			truncatedEmissions[pool] = program.EmissionCap
+		} else {
+			truncatedEmissions[pool] = amount
+		}
+	}
+
+	return truncatedEmissions
 }
 
 // Compute the total LP token days that each owner has; We multiply the LP tokens by seconds they were locked, and then divide by 86400.
@@ -605,7 +710,7 @@ type CalculationOutputs struct {
 	NumDelegationDays          int
 	DelegationOverWindowByPool map[string]uint64
 
-	PoolsReceivingEmissions map[string]uint64
+	PoolsEligibleForEmissions map[string]uint64
 
 	LockedLPByPool map[string]uint64
 	TotalLPByPool  map[string]uint64
@@ -613,8 +718,9 @@ type CalculationOutputs struct {
 	EstimatedLockedLovelace       uint64
 	EstimatedLockedLovelaceByPool map[string]uint64
 
-	TotalEmissions  uint64
-	EmissionsByPool map[string]uint64
+	TotalEmissions             uint64
+	UntruncatedEmissionsByPool map[string]uint64
+	EmissionsByPool            map[string]uint64
 
 	EmissionsByOwner map[string]uint64
 
@@ -634,7 +740,7 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	}
 
 	// To calculate the daily emissions, ... first take inventory of SUNDAE held at the Locking Contract
-	// and factory in the users delegation
+	// and factor in the users delegation
 	delegationByPool, totalDelegation, err := CalculateTotalDelegations(ctx, program, positions, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to calculate total delegations: %w", err)
@@ -676,13 +782,15 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	}
 
 	// The top pools ... will be eligible for yield farming rewards that day.
-	poolsReceivingEmissions, err := SelectPoolsForEmission(ctx, program, delegationOverWindowByPool, poolLookup)
+	poolsEligibleForEmissions, err := SelectEligiblePoolsForEmission(ctx, program, delegationOverWindowByPool, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to select pools for emission: %w", err)
 	}
 
 	// We then divide the daily emissions among these pools ...
-	emissionsByAsset, err := RegroupByAsset(ctx, DistributeEmissionsToPools(program, poolsReceivingEmissions), poolLookup)
+	rawEmissionsByPool := DistributeEmissionsToPools(program, poolsEligibleForEmissions)
+	emissionsByPool := TruncateEmissions(program, rawEmissionsByPool)
+	emissionsByAsset, err := RegroupByAsset(ctx, emissionsByPool, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to regroup emissions by asset: %w", err)
 	}
@@ -698,10 +806,6 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	}
 
 	// Find the pool that we should use for price reference, so we can estimate the ADA value of what was emitted
-	emissionsByPool, err := RegroupByPool(ctx, emissionsByAsset, poolLookup)
-	if err != nil {
-		return CalculationOutputs{}, fmt.Errorf("failed to regroup emissions by pool: %w", err)
-	}
 	var emittedLovelaceValue uint64
 	emittedLovelaceValueByPool := map[string]uint64{}
 	if program.ReferencePool != "" {
@@ -734,7 +838,7 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 		NumDelegationDays:          program.ConsecutiveDelegationWindow,
 		DelegationOverWindowByPool: delegationOverWindowByPool,
 
-		PoolsReceivingEmissions: poolsReceivingEmissions,
+		PoolsEligibleForEmissions: poolsEligibleForEmissions,
 
 		LockedLPByPool: lockedLPByPool,
 		TotalLPByPool:  totalLPByPool,
@@ -742,8 +846,9 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 		EstimatedLockedLovelace:       totalEstimatedValue,
 		EstimatedLockedLovelaceByPool: estimatedValueByPool,
 
-		TotalEmissions:  program.DailyEmission,
-		EmissionsByPool: emissionsByPool,
+		TotalEmissions:             program.DailyEmission,
+		UntruncatedEmissionsByPool: rawEmissionsByPool,
+		EmissionsByPool:            emissionsByPool,
 
 		EmissionsByOwner: perOwnerTotal,
 
