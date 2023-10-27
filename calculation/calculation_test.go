@@ -187,7 +187,7 @@ func Test_SummationConstraint(t *testing.T) {
 
 func Test_SumWindow(t *testing.T) {
 	program := sampleProgram(500000_000_000)
-	program.ConsecutiveDelegationWindow = 1
+	program.ConsecutiveDelegationWindow = 2
 	qualifyingDelegations := map[string]uint64{
 		"A": 100,
 		"B": 200,
@@ -627,6 +627,9 @@ func Test_Calculate_Earnings(t *testing.T) {
 		assert.Nil(t, err)
 		totalEarnings := uint64(0)
 		previousDays = append(previousDays, calcOutputs)
+		if len(previousDays) > program.ConsecutiveDelegationWindow-1 {
+			previousDays = previousDays[1:]
+		}
 		for _, e := range calcOutputs.Earnings {
 			totalEarnings += e.Value.Assets[program.EmittedAsset].Uint64()
 		}
