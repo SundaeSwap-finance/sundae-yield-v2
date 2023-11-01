@@ -4,6 +4,14 @@ Source: https://governance.sundaeswap.finance/#/proposal#a05c237661ca815c13b0526
 
 Note: A few small details were left unspecified in the spec, and are noted below with **ADDENDUM**; These differences can only ever impact the outcome by one millionth of a sundae per pool or per person, so is considered not critical enough to seek another governance vote. 
 
+This also includes changes described in the following proposals:
+ - https://governance.sundaeswap.finance/#/proposal#346ed07d68025757fadc420fcca56c20a5cb8a8bc44e21bb3156372172f43923
+ - https://governance.sundaeswap.finance/#/proposal#b329aec41e3e612d9b088d0af580627b14e2b40ea238be72f5aa78c2ec6bdbe7
+ - https://governance.sundaeswap.finance/#/proposal#fc3294e71a2141f2147b32a72299c0b0bb061d44409d498bc8063141d7b0c0e9
+ - https://governance.sundaeswap.finance/#/proposal#3073216b94547c3737246d5a6c2190e475cd71a00fafa8f7b753704898a942ec
+ - https://governance.sundaeswap.finance/#/proposal#aad6e69a965debc3fa90d3bbe72c5d2aeceabcd14534b6f53265eaf4669b8cc7
+
+Algorithm:
 - Any unclaimed Yield Farming v1 rewards will be assigned an expiration date 90 days after the launch of the new yield farming program.
 - After the development of the features summarized above, the yield farming program will be launched with a separate protocol vote to decide between the following three initial daily emission rates:
   - 118,430 SUNDAE per day (equivalent to 20% of the treasury in the next 4 years);
@@ -31,14 +39,21 @@ Note: A few small details were left unspecified in the spec, and are noted below
   - Each UTXO of locked SUNDAE may encode a weighting for a set of pools, as described above; the absence of such a list will exclude all SUNDAE at that UTXO from consideration.
   - SundaeSwap Labs will then divide the SUNDAE at the UTXO among the selected options in accordance to the weight, rounding down and distributing millionths of a SUNDAE among the options in order until the total SUNDAE allocated equals the SUNDAE held at the UTXO.
   - Any pool that has less than 1% of the pools LP tokens held at the Locking Contract will be considered an abstention and will not be eligible for rewards.
+  - Any pool, asset, or pair that is explicitly disqualified will also be disqualified, such as any ADA/SUNDAE pool.
   - We will sum up the allocated SUNDAE across all UTXOs held at the Locking Contract.
-  - The top 10 pools, or the top pools that collectively receive 20% of the total weight (whichever is fewer) will be eligible for yield farming rewards that day.
+  - We will add this SUNDAE to the raw SUNDAE delegations from the previous 2 days, to deter wild swings in delegation.
+  - Any pools with fixed emissions will be assigned those emissions; for example, the ADA/SUNDAE pool (08) has a fixed emission of 133234.5 SUNDAE per day.
+  - Among the remaining qualified pools, the top N pools (currently 10), or the top pools that collectively receive P percent (currently 80%) of the total weight (whichever is fewer) will be eligible for yield farming rewards that day.
     - **ADDENDUM**: Perfect ties will be broken by those who have issued the fewest LP tokens, and then in favor of the lesser poolIdentifer
   - Note that this criteria can be updated by a governance vote.
-  - We then divide the daily emissions among these pools in proportion to their weight, rounding down and distributing millionths of a SUNDAE among them until the daily emission is accounted for.
+  - We then divide the remaining daily emissions among these pools in proportion to their weight, rounding down and distributing millionths of a SUNDAE among them until the daily emission is accounted for.
     - **ADDENDUM**: Perfect ties are resolved in favor of the lesser poolIdentifier
-- For each pool, SundaeSwap labs will then calculate the allocation of rewards in proportion to the LP tokens held at the Locking Contract.
+  - Any pool which exceeds the Emissions cap (currently 62176.1 SUNDAE) will be set to the emissions cap, and the remaining emissions returned to the treasury.
+- For each pool, SundaeSwap labs will then calculate the allocation of rewards in proportion to the LP tokens held at the Locking Contract at any point during the 24 hours between each snapshot.
   - We will sum up the LP tokens held by each distinct owner encoded in the Locking Contract; thus, if someone has multiple UTXOs at the Locking Contract, they will receive a single allocation in proportion to the sum of their LP tokens.
+  - We will multiply the quantity of LP tokens by the lifespan of the UTXO, in seconds, intersected with the 24 hour window.
+    - For example, if someone has 100 LP tokens locked for the full day, their weight will be 8640000; if someone has 100 LP tokens locked for half the day, their weight will be 4320000.
+    - This is to prevent gamesmanship by locking tokens in the last minutes before the snapshot.
   - The emissions for each owner will be rounded down, and millionths of a SUNDAE distributed round-robin until the total user emissions match the pool emissions.
     - **ADDENDUM**: The sort order for this round-robin will be by hash of the owner in the datum; this will only ever make one sprinkle worth of difference.
 - Users will be able to claim these emitted tokens at any time, with no 30-day locking requirement.
