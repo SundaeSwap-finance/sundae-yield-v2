@@ -138,7 +138,8 @@ func CalculateTotalLPAtSnapshot(
 		// (as opposed to integrated over the day)
 		// This also avoids a subtle corner case where the pool can be deleted by the snapshot,
 		// but still have a position earlier in the day with locked LP, which would cause a divide by zero below
-		if position.SpentTransaction != "" && position.SpentSlot < maxSlot {
+		activeAtSnapshot := position.SpentTransaction == "" || (position.Slot < maxSlot && position.SpentSlot >= maxSlot)
+		if !activeAtSnapshot {
 			continue
 		}
 		for assetId, amount := range position.Value.Assets {
@@ -829,6 +830,14 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	// Users will be able to claim these emitted tokens
 	// we return a set of "earnings" for the day
 	earnings, perOwnerTotal := EmissionsByOwnerToEarnings(date, program, emissionsByOwner, ownersByID)
+
+	totalEmissions := uint64(0)
+	for _, byPool := range emissionsByOwner {
+		for _, amount := range byPool {
+			totalEmissions += amount
+		}
+	}
+
 	return CalculationOutputs{
 		Timestamp: time.Now().Format(time.RFC3339),
 
@@ -849,7 +858,7 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 		EstimatedLockedLovelace:       totalEstimatedValue,
 		EstimatedLockedLovelaceByPool: estimatedValueByPool,
 
-		TotalEmissions:             program.DailyEmission,
+		TotalEmissions:             totalEmissions,
 		UntruncatedEmissionsByPool: rawEmissionsByPool,
 		EmissionsByPool:            emissionsByPool,
 
