@@ -289,9 +289,9 @@ func Test_QualifiedPools(t *testing.T) {
 
 func Test_CalculateTotalLP(t *testing.T) {
 	positions := []types.Position{
-		{OwnerID: "A", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
-		{OwnerID: "B", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(200)}}},
-		{OwnerID: "C", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_Y": num.Uint64(500)}}},
+		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
+		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)})},
+		{OwnerID: "C", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(500)})},
 	}
 	pools := MockLookup{
 		"X": {PoolIdent: "X", LPAsset: "LP_X", TotalLPTokens: 500, AssetAQuantity: 1000},
@@ -417,7 +417,7 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y"},
 	}
 	byOwner, byAsset := TotalLPDaysByOwnerAndAsset([]types.Position{
-		{OwnerID: "A", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
+		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
 	}, pools, 0, 86400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
 		"A": {"LP_X": 100},
@@ -427,8 +427,8 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	}, byAsset)
 
 	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
-		{OwnerID: "A", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
-		{OwnerID: "B", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(200)}}},
+		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
+		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)})},
 	}, pools, 0, 86400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
 		"A": {"LP_X": 100},
@@ -439,9 +439,9 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	}, byAsset)
 
 	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
-		{OwnerID: "A", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
-		{OwnerID: "B", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(200)}}},
-		{OwnerID: "B", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
+		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
+		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)})},
+		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
 	}, pools, 0, 86400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
 		"A": {"LP_X": 100},
@@ -452,9 +452,12 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	}, byAsset)
 
 	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
-		{OwnerID: "A", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
+		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
+
+		shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)}, shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(150)}),
+
 		{OwnerID: "B", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(200), "LP_Y": num.Uint64(150)}}},
-		{OwnerID: "B", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
+		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
 	}, pools, 0, 86400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
 		"A": {"LP_X": 100},
@@ -468,14 +471,14 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	// Test the time-weighting bits
 	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
 		// Half day
-		{OwnerID: "A", Slot: 143200, Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(100)}}},
+		{OwnerID: "A", Slot: 143200, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
 		// Quarter day, with rounding down
 		{OwnerID: "B", Slot: 143200, SpentTransaction: "A", SpentSlot: 164800, Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(200), "LP_Y": num.Uint64(150)}}},
 		// Lockup before the day starts
-		{OwnerID: "C", Slot: 12, Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
+		{OwnerID: "C", Slot: 12, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
 		// Consecutive positions, constituting half, plus after day ends
-		{OwnerID: "D", Slot: 143200, SpentTransaction: "B", SpentSlot: 164800, Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
-		{OwnerID: "D", Slot: 164800, SpentTransaction: "C", SpentSlot: 264800, Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(300)}}},
+		{OwnerID: "D", Slot: 143200, SpentTransaction: "B", SpentSlot: 164800, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
+		{OwnerID: "D", Slot: 164800, SpentTransaction: "C", SpentSlot: 264800, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
 	}, pools, 100000, 186400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
 		"A": {"LP_X": 50},
@@ -564,8 +567,8 @@ func Test_EmissionsToOwners(t *testing.T) {
 	assert.EqualValues(t, map[string]map[string]uint64{"A": {"LP_X": 334, "LP_Y": 500}, "B": {"LP_X": 666}}, emissionsByOwner)
 }
 
-func makeValue(token string, amt uint64) chainsync.Value {
-	return chainsync.Value{Assets: map[shared.AssetID]num.Int{shared.AssetID(token): num.Uint64(amt)}}
+func makeValue(token string, amt uint64) shared.Value {
+	return shared.ValueFromCoins(shared.Coin{AssetId: shared.AssetID(token), Amount: num.Uint64(amt)})
 }
 
 func Test_EmissionsToEarnings(t *testing.T) {
@@ -587,7 +590,7 @@ func Test_EmissionsToEarnings(t *testing.T) {
 		{
 			OwnerID: "A", Program: program.ID, Owner: ownerA, EarnedDate: now,
 			Value: makeValue("Emitted", 1000),
-			ValueByLPToken: map[string]chainsync.Value{
+			ValueByLPToken: map[string]shared.Value{
 				"LP_X": makeValue("Emitted", 900),
 				"LP_Y": makeValue("Emitted", 100),
 			},
@@ -595,7 +598,7 @@ func Test_EmissionsToEarnings(t *testing.T) {
 		{
 			OwnerID: "B", Program: program.ID, Owner: ownerB, EarnedDate: now,
 			Value: makeValue("Emitted", 1500),
-			ValueByLPToken: map[string]chainsync.Value{
+			ValueByLPToken: map[string]shared.Value{
 				"LP_X": makeValue("Emitted", 1000),
 				"LP_Y": makeValue("Emitted", 200),
 				"LP_Z": makeValue("Emitted", 300),
@@ -689,7 +692,7 @@ func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPoo
 		position := types.Position{
 			OwnerID: owner,
 			Owner:   types.MultisigScript{Signature: &types.Signature{KeyHash: []byte(owner)}},
-			Value: chainsync.Value{
+			Value: shared.Value{
 				Assets: map[shared.AssetID]num.Int{
 					program.StakedAsset: num.Int64(numSundae),
 				},
