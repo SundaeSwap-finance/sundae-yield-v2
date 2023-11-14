@@ -139,7 +139,7 @@ func Test_TotalDelegations(t *testing.T) {
 	positions = []types.Position{
 		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 	}
-	positions[0].Value.Assets["LP_01"] = num.Int64(50_000)
+	positions[0].Value["Assets"]["LP_01"] = num.Int64(50_000)
 	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, pools)
 	assert.Nil(t, err)
 	assert.EqualValues(t, 75_000, delegationsByPool["01"])
@@ -632,7 +632,7 @@ func Test_Calculate_Earnings(t *testing.T) {
 			previousDays = previousDays[1:]
 		}
 		for _, e := range calcOutputs.Earnings {
-			totalEarnings += e.Value.Assets[program.EmittedAsset].Uint64()
+			totalEarnings += e.Value["Assets"][program.EmittedAsset.String()].Uint64()
 		}
 		totalFixedEmissions := uint64(0)
 		for _, amt := range program.FixedEmissions {
@@ -718,13 +718,13 @@ func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPoo
 			pool := rand.Intn(numPools)
 			lp := shared.AssetID(fmt.Sprintf("LP_%v", pool))
 			amt := rand.Int63n(30_000_000)
-			position.Value.Assets[lp] = num.Int64(amt)
+			position.Value["Assets"][lp.String()] = num.Int64(amt)
 			lockedByPool[pool] += uint64(amt)
 		}
 		numOtherTokens := rand.Intn(5)
 		for j := 0; j < numOtherTokens; j++ {
 			token := shared.AssetID(fmt.Sprintf("Random_%v", numOtherTokens))
-			position.Value.Assets[token] = num.Int64(rand.Int63n(30_000_000_000))
+			position.Value["Assets"][token.String()] = num.Int64(rand.Int63n(30_000_000_000))
 		}
 
 		positions = append(positions, position)
