@@ -453,10 +453,7 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 
 	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
 		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
-
-		shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)}, shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(150)}),
-
-		{OwnerID: "B", Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(200), "LP_Y": num.Uint64(150)}}},
+		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)}, shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(150)})},
 		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
 	}, pools, 0, 86400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
@@ -473,7 +470,7 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 		// Half day
 		{OwnerID: "A", Slot: 143200, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
 		// Quarter day, with rounding down
-		{OwnerID: "B", Slot: 143200, SpentTransaction: "A", SpentSlot: 164800, Value: chainsync.Value{Assets: map[shared.AssetID]num.Int{"LP_X": num.Uint64(200), "LP_Y": num.Uint64(150)}}},
+		{OwnerID: "B", Slot: 143200, SpentTransaction: "A", SpentSlot: 164800, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)}, shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(150)})},
 		// Lockup before the day starts
 		{OwnerID: "C", Slot: 12, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
 		// Consecutive positions, constituting half, plus after day ends
@@ -692,11 +689,7 @@ func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPoo
 		position := types.Position{
 			OwnerID: owner,
 			Owner:   types.MultisigScript{Signature: &types.Signature{KeyHash: []byte(owner)}},
-			Value: shared.Value{
-				Assets: map[shared.AssetID]num.Int{
-					program.StakedAsset: num.Int64(numSundae),
-				},
-			},
+			Value:   shared.ValueFromCoins(shared.Coin{AssetId: program.StakedAsset, Amount: num.Int64(numSundae)}),
 		}
 		numDelegations := rand.Intn(40)
 		for j := 0; j < numDelegations; j++ {
