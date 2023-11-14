@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/num"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
 	"github.com/SundaeSwap-finance/sundae-yield-v2/types"
@@ -27,17 +26,12 @@ func sampleProgram(emissions uint64) types.Program {
 	}
 }
 
-func samplePosition(owner string, staked int64, delegations ...types.Delegation) types.Position {
+func samplePosition(owner string, staked uint64, delegations ...types.Delegation) types.Position {
 	return types.Position{
-		OwnerID:   owner,
-		Slot:      0,
-		SpentSlot: 0,
-		Value: chainsync.Value{
-			Coins: num.Int64(0),
-			Assets: map[shared.AssetID]num.Int{
-				shared.AssetID("Staked"): num.Int64(staked),
-			},
-		},
+		OwnerID:    owner,
+		Slot:       0,
+		SpentSlot:  0,
+		Value:      shared.ValueFromCoins(shared.Coin{AssetId: shared.AssetID("Staked"), Amount: num.Uint64(staked)}),
 		Delegation: delegations,
 	}
 }
@@ -165,7 +159,7 @@ func Test_SummationConstraint(t *testing.T) {
 	program := sampleProgram(500000_000_000)
 
 	// Should always add up to initial sundae
-	initialSundae := rand.Int63()
+	initialSundae := rand.Uint64()
 	delegationCount := rand.Intn(30)
 	delegations := []types.Delegation{}
 	for i := 0; i < delegationCount; i++ {
