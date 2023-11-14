@@ -7,7 +7,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/num"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
 	"github.com/SundaeSwap-finance/sundae-yield-v2/types"
@@ -662,26 +661,17 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 	var ret []types.Earning
 	total := map[string]uint64{}
 	for ownerID, perLPToken := range emissionsByOwner {
-		ownerValue := chainsync.Value{
-			Coins: num.Int64(0),
-			Assets: map[shared.AssetID]num.Int{
-				program.EmittedAsset: num.Uint64(0),
-			},
-		}
-		ownerValueByLP := map[string]chainsync.Value{}
+		ownerValue := shared.ValueFromCoins(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(0)})
+
+		ownerValueByLP := map[string]shared.Value{}
 		for lpToken, amount := range perLPToken {
-			ownerValue.Assets[program.EmittedAsset] = ownerValue.Assets[program.EmittedAsset].Add(num.Uint64(amount))
+			ownerValue["Assets"][program.EmittedAsset.String()] = ownerValue["Assets"][program.EmittedAsset.String()].Add(num.Uint64(amount))
 			if amount > 0 {
-				ownerValueByLP[lpToken] = chainsync.Value{
-					Coins: num.Int64(0),
-					Assets: map[shared.AssetID]num.Int{
-						program.EmittedAsset: num.Uint64(amount),
-					},
-				}
+				ownerValueByLP[lpToken] = shared.ValueFromCoins(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(amount)})
 			}
 			total[ownerID] += amount
 		}
-		if ownerValue.Assets[program.EmittedAsset].Uint64() == 0 {
+		if ownerValue["Assets"][program.EmittedAsset.String()].Uint64() == 0 {
 			continue
 		}
 		earning := types.Earning{
