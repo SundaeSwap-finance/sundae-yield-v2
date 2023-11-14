@@ -3,7 +3,9 @@ package types
 import (
 	"time"
 
-	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync"
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/num"
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
 )
 
 const DateFormat = "2006-01-02" // Format dates like this, so they can be compared lexographically
@@ -15,8 +17,8 @@ type Program struct {
 	LastDailyRewards  Date
 
 	DailyEmission uint64 // TODO: generalize to asset?
-	EmittedAsset  chainsync.AssetID
-	StakedAsset   chainsync.AssetID
+	EmittedAsset  shared.AssetID
+	StakedAsset   shared.AssetID
 	ReferencePool string // Which pool should we use as a reference when estimating locked value?
 
 	// Sum up delegations from the last N days, to smooth out instantaneous changes in delegation
@@ -39,20 +41,20 @@ type Program struct {
 	// A list of pools for which a delegation is considered valid
 	EligiblePools []string
 	// A list of assets for which *any* pools will be considered valid
-	EligibleAssets []chainsync.AssetID
+	EligibleAssets []shared.AssetID
 	// A list of assets, for which *any* pool with these two assets will be considered valid
 	EligiblePairs []struct {
-		AssetA chainsync.AssetID
-		AssetB chainsync.AssetID
+		AssetA shared.AssetID
+		AssetB shared.AssetID
 	}
 	// A list of pools for which delegation will be ignored
 	DisqualifiedPools []string
 	// A list of assets, for which *any* pools will be considered invalid
-	DisqualifiedAssets []chainsync.AssetID
+	DisqualifiedAssets []shared.AssetID
 	// A list of assets, for which *any* pool with these two assets will be considered invalid
 	DisqualifiedPairs []struct {
-		AssetA chainsync.AssetID
-		AssetB chainsync.AssetID
+		AssetA shared.AssetID
+		AssetB shared.AssetID
 	}
 	// A list of pools which are automatically considered to have crossed the percentile threshold
 	NepotismPools []string
@@ -67,10 +69,10 @@ type Pool struct {
 	TransactionHash string
 	Slot            uint64
 	TotalLPTokens   uint64
-	LPAsset         chainsync.AssetID
-	AssetA          chainsync.AssetID
+	LPAsset         shared.AssetID
+	AssetA          shared.AssetID
 	AssetAQuantity  uint64
-	AssetB          chainsync.AssetID
+	AssetB          shared.AssetID
 	AssetBQuantity  uint64
 }
 

@@ -7,16 +7,17 @@ import (
 	"sort"
 	"time"
 
-	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync"
-	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync/num"
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/num"
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
 	"github.com/SundaeSwap-finance/sundae-yield-v2/types"
 )
 
 type PoolLookup interface {
 	PoolByIdent(ctx context.Context, poolIdent string) (types.Pool, error)
-	PoolByLPToken(ctx context.Context, lpToken chainsync.AssetID) (types.Pool, error)
-	IsLPToken(assetId chainsync.AssetID) bool
-	LPTokenToPoolIdent(lpToken chainsync.AssetID) (string, error)
+	PoolByLPToken(ctx context.Context, lpToken shared.AssetID) (types.Pool, error)
+	IsLPToken(assetId shared.AssetID) bool
+	LPTokenToPoolIdent(lpToken shared.AssetID) (string, error)
 }
 
 // Calculate the total amount of sundae delegated to each pool, according to each users chosen "weighting"
@@ -495,9 +496,9 @@ func TruncateEmissions(program types.Program, emissionsByPool map[string]uint64)
 
 // Compute the total LP token days that each owner has; We multiply the LP tokens by seconds they were locked, and then divide by 86400.
 // This effectively divides the LP tokens by the fraction of the day they are locked, to prevent someone locking in the last minute of the day to receive rewards
-func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLookup, minSlot uint64, maxSlot uint64) (map[string]map[chainsync.AssetID]uint64, map[chainsync.AssetID]uint64) {
-	lpDaysByOwner := map[string]map[chainsync.AssetID]uint64{}
-	lpDaysByAsset := map[chainsync.AssetID]uint64{}
+func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLookup, minSlot uint64, maxSlot uint64) (map[string]map[shared.AssetID]uint64, map[shared.AssetID]uint64) {
+	lpDaysByOwner := map[string]map[shared.AssetID]uint64{}
+	lpDaysByAsset := map[shared.AssetID]uint64{}
 	for _, p := range positions {
 		for assetId, amount := range p.Value.Assets {
 			if poolLookup.IsLPToken(assetId) {
@@ -522,7 +523,7 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 
 				existingLPDays, ok := lpDaysByOwner[p.OwnerID]
 				if !ok {
-					existingLPDays = map[chainsync.AssetID]uint64{}
+					existingLPDays = map[shared.AssetID]uint64{}
 				}
 				newWeight := existingLPDays[assetId] + weight.Uint64()
 
@@ -537,8 +538,8 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 }
 
 // Switch the map key from pool Ident to LP token
-func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup PoolLookup) (map[chainsync.AssetID]uint64, error) {
-	byLPAsset := map[chainsync.AssetID]uint64{}
+func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup PoolLookup) (map[shared.AssetID]uint64, error) {
+	byLPAsset := map[shared.AssetID]uint64{}
 	for poolIdent, amount := range byPool {
 		if amount == 0 {
 			continue
@@ -553,7 +554,7 @@ func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup Po
 }
 
 // Switch the map key from LP token to pool Ident
-func RegroupByPool(ctx context.Context, byAsset map[chainsync.AssetID]uint64, poolLookup PoolLookup) (map[string]uint64, error) {
+func RegroupByPool(ctx context.Context, byAsset map[shared.AssetID]uint64, poolLookup PoolLookup) (map[string]uint64, error) {
 	// Note: assumes bijection
 	byIdent := map[string]uint64{}
 	for asset, amount := range byAsset {
@@ -570,11 +571,11 @@ func RegroupByPool(ctx context.Context, byAsset map[chainsync.AssetID]uint64, po
 }
 
 // Split the daily emissions of each pool among the owners of LP tokens, according to their total LP weight
-func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[chainsync.AssetID]uint64, emissionsByAsset map[chainsync.AssetID]uint64, lpTokensByAsset map[chainsync.AssetID]uint64) map[string]map[string]uint64 {
+func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[shared.AssetID]uint64, emissionsByAsset map[shared.AssetID]uint64, lpTokensByAsset map[shared.AssetID]uint64) map[string]map[string]uint64 {
 	// expand out the lpTokensByOwner, so we can sort them canonically for the round-robin
 	type OwnerStake struct {
 		OwnerID string
-		Value   map[chainsync.AssetID]uint64
+		Value   map[shared.AssetID]uint64
 	}
 	var ownerStakes []OwnerStake
 	for ownerId, weights := range lpWeightByOwner {
@@ -590,7 +591,7 @@ func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[chainsync.AssetI
 
 	// Now loop over each, and allocate a portion of the emissions
 	emissionsByOwner := map[string]map[string]uint64{}
-	allocatedByAsset := map[chainsync.AssetID]uint64{}
+	allocatedByAsset := map[shared.AssetID]uint64{}
 	for _, ownerStake := range ownerStakes {
 		for assetId, amount := range ownerStake.Value {
 			emission := emissionsByAsset[assetId]
@@ -630,7 +631,7 @@ func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[chainsync.AssetI
 				// It doesn't actually matter which one we add it to, but this makes it determinsitic
 				minLP := ""
 				for asset := range m {
-					if _, ok := emissionsByAsset[chainsync.AssetID(asset)]; ok && (minLP == "" || asset < minLP) {
+					if _, ok := emissionsByAsset[shared.AssetID(asset)]; ok && (minLP == "" || asset < minLP) {
 						minLP = asset
 					}
 				}
@@ -657,7 +658,7 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 	for ownerID, perLPToken := range emissionsByOwner {
 		ownerValue := chainsync.Value{
 			Coins: num.Int64(0),
-			Assets: map[chainsync.AssetID]num.Int{
+			Assets: map[shared.AssetID]num.Int{
 				program.EmittedAsset: num.Uint64(0),
 			},
 		}
@@ -667,7 +668,7 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 			if amount > 0 {
 				ownerValueByLP[lpToken] = chainsync.Value{
 					Coins: num.Int64(0),
-					Assets: map[chainsync.AssetID]num.Int{
+					Assets: map[shared.AssetID]num.Int{
 						program.EmittedAsset: num.Uint64(amount),
 					},
 				}
