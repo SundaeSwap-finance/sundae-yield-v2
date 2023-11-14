@@ -26,12 +26,12 @@ func sampleProgram(emissions uint64) types.Program {
 	}
 }
 
-func samplePosition(owner string, staked uint64, delegations ...types.Delegation) types.Position {
+func samplePosition(owner string, staked int64, delegations ...types.Delegation) types.Position {
 	return types.Position{
 		OwnerID:    owner,
 		Slot:       0,
 		SpentSlot:  0,
-		Value:      shared.ValueFromCoins(shared.Coin{AssetId: shared.AssetID("Staked"), Amount: num.Uint64(staked)}),
+		Value:      shared.ValueFromCoins(shared.Coin{AssetId: shared.AssetID("Staked"), Amount: num.Int64(staked)}),
 		Delegation: delegations,
 	}
 }
@@ -159,7 +159,7 @@ func Test_SummationConstraint(t *testing.T) {
 	program := sampleProgram(500000_000_000)
 
 	// Should always add up to initial sundae
-	initialSundae := rand.Uint64()
+	initialSundae := rand.Int63()
 	delegationCount := rand.Intn(30)
 	delegations := []types.Delegation{}
 	for i := 0; i < delegationCount; i++ {
