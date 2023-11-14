@@ -3,8 +3,6 @@ package types
 import (
 	"time"
 
-	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
-	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/num"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
 )
 
@@ -90,7 +88,7 @@ type Position struct {
 	SpentTransaction string
 	SpentSlot        uint64
 
-	Value      chainsync.Value
+	Value      shared.Value
 	Delegation []Delegation
 }
 
@@ -100,6 +98,6 @@ type Earning struct {
 	Program        string
 	EarnedDate     Date
 	ExpirationDate *time.Time
-	Value          chainsync.Value
-	ValueByLPToken map[string]chainsync.Value
+	Value          shared.Value
+	ValueByLPToken map[string]shared.Value
 }
