@@ -4,6 +4,8 @@ github.com/SundaeSwap-finance/ogmigo v0.7.7 h1:xp9DTFzsBDHVOzrP9CSshhM6sPSySPVQN
 github.com/SundaeSwap-finance/ogmigo v0.7.7/go.mod h1:Zuywifig7DQb5sEBrXsE44tv7fIm3fa9izKihtaez1I=
 github.com/SundaeSwap-finance/ogmigo v0.7.8 h1:yCS6eGexDIYkjFxt8SkG/mtha1BJEEf6K9pijfA9WMc=
 github.com/SundaeSwap-finance/ogmigo v0.7.8/go.mod h1:Zuywifig7DQb5sEBrXsE44tv7fIm3fa9izKihtaez1I=
+github.com/SundaeSwap-finance/ogmigo/v6 v6.0.0-20231113061525-0180d57af523 h1:aBUTY8BZCVZ9JcRqlN/UjR+EnQ+0DziJ/R4i0D37d+4=
+github.com/SundaeSwap-finance/ogmigo/v6 v6.0.0-20231113061525-0180d57af523/go.mod h1:CsDGcgbkKoz6S4h0RJ30go7oXG+KhGE2KLhBpRFnEqA=
 github.com/aws/aws-sdk-go v1.44.197 h1:pkg/NZsov9v/CawQWy+qWVzJMIZRQypCtYjUBXFomF8=
 github.com/aws/aws-sdk-go v1.44.197/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
 github.com/buger/jsonparser v1.1.1 h1:2PnMjfWD7wBILjqQbt530v576A/cAbQvEW9gGIpYMUs=

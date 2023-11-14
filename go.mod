@@ -3,13 +3,13 @@ module github.com/SundaeSwap-finance/sundae-yield-v2
 go 1.20
 
 require (
-	github.com/SundaeSwap-finance/ogmigo v0.7.8
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/tj/assert v0.0.3
 	golang.org/x/crypto v0.0.0-20220314234659-1baeb1ce4c0b
 )
 
 require (
+	github.com/SundaeSwap-finance/ogmigo/v6 v6.0.0-20231113061525-0180d57af523 // indirect
 	github.com/aws/aws-sdk-go v1.44.197 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
