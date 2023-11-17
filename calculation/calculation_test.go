@@ -136,7 +136,7 @@ func Test_TotalDelegations(t *testing.T) {
 	positions[0].Value.AddAsset(shared.Coin{AssetId: "LP_01", Amount: num.Uint64(50_000)})
 	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, pools)
 	assert.Nil(t, err)
-	assert.EqualValues(t, 75_000, delegationsByPool["01"])
+	assert.EqualValues(t, 75_000, int64(delegationsByPool["01"]))
 	assert.EqualValues(t, 75_000, delegationsByPool["02"])
 	assert.EqualValues(t, 150_000, totalDelegations)
 
@@ -626,7 +626,7 @@ func Test_Calculate_Earnings(t *testing.T) {
 			previousDays = previousDays[1:]
 		}
 		for _, e := range calcOutputs.Earnings {
-			totalEarnings += e.Value["Assets"][program.EmittedAsset.String()].Uint64()
+			totalEarnings += e.Value.AssetAmount(program.EmittedAsset).Uint64()
 		}
 		totalFixedEmissions := uint64(0)
 		for _, amt := range program.FixedEmissions {

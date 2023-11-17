@@ -38,7 +38,8 @@ func CalculateTotalDelegations(
 		totalDelegationAsset := position.Value.AssetAmount(program.StakedAsset)
 
 		// Add in the value of LP tokens, according to the ratio of the pools at the snapshot
-		for id, amt := range position.Value["Assets"] {
+
+		for id, _ := range position.Value {
 			assetId := shared.AssetID(id)
 
 			if poolLookup.IsLPToken(assetId) {
@@ -47,7 +48,7 @@ func CalculateTotalDelegations(
 					return nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
 				}
 				if pool.AssetA == program.StakedAsset || pool.AssetB == program.StakedAsset {
-					frac := big.NewInt(amt.Int64())
+					frac := big.NewInt(position.Value.AssetAmount(assetId).Int64())
 					if pool.AssetA == program.StakedAsset {
 						frac = frac.Mul(frac, big.NewInt(int64(pool.AssetAQuantity)))
 					} else if pool.AssetB == program.StakedAsset {
@@ -144,7 +145,9 @@ func CalculateTotalLPAtSnapshot(
 		if !activeAtSnapshot {
 			continue
 		}
-		for id, amount := range position.Value["Assets"] {
+
+		for id, _ := range position.Value {
+
 			assetId := shared.AssetID(id)
 
 			if poolLookup.IsLPToken(assetId) {
@@ -152,6 +155,8 @@ func CalculateTotalLPAtSnapshot(
 				if err != nil {
 					return nil, nil, nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
 				}
+
+				amount := position.Value.AssetAmount(assetId)
 				poolsByIdent[pool.PoolIdent] = pool
 				lockedLPByIdent[pool.PoolIdent] += amount.Uint64()
 				if pool.AssetA == "" {
@@ -503,7 +508,7 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 	lpDaysByOwner := map[string]map[shared.AssetID]uint64{}
 	lpDaysByAsset := map[shared.AssetID]uint64{}
 	for _, p := range positions {
-		for id, amount := range p.Value["Assets"] {
+		for id, _ := range p.Value {
 			assetId := shared.AssetID(id)
 
 			if poolLookup.IsLPToken(assetId) {
@@ -523,7 +528,7 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 				secondsLocked := endTime - startTime
 
 				weight := big.NewInt(0).SetUint64(secondsLocked)
-				weight = weight.Mul(weight, amount.BigInt())
+				weight = weight.Mul(weight, p.Value.AssetAmount(assetId).BigInt())
 				weight = weight.Div(weight, big.NewInt(0).SetUint64(maxSlot-minSlot))
 
 				existingLPDays, ok := lpDaysByOwner[p.OwnerID]
