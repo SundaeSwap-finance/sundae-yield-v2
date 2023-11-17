@@ -39,7 +39,7 @@ func CalculateTotalDelegations(
 
 		// Add in the value of LP tokens, according to the ratio of the pools at the snapshot
 
-		for id, _ := range position.Value {
+		for id := range position.Value {
 			assetId := shared.AssetID(id)
 
 			if poolLookup.IsLPToken(assetId) {
@@ -146,7 +146,7 @@ func CalculateTotalLPAtSnapshot(
 			continue
 		}
 
-		for id, _ := range position.Value {
+		for id := range position.Value {
 
 			assetId := shared.AssetID(id)
 
@@ -508,7 +508,7 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 	lpDaysByOwner := map[string]map[shared.AssetID]uint64{}
 	lpDaysByAsset := map[shared.AssetID]uint64{}
 	for _, p := range positions {
-		for id, _ := range p.Value {
+		for id := range p.Value {
 			assetId := shared.AssetID(id)
 
 			if poolLookup.IsLPToken(assetId) {
