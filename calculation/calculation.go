@@ -503,7 +503,7 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 	lpDaysByOwner := map[string]map[shared.AssetID]uint64{}
 	lpDaysByAsset := map[shared.AssetID]uint64{}
 	for _, p := range positions {
-		for id, amount := range p.Value.AssetsExceptAda() {
+		for id, amount := range p.Value["Assets"] {
 			assetId := shared.AssetID(id)
 
 			if poolLookup.IsLPToken(assetId) {
