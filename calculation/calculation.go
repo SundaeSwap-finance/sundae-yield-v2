@@ -35,7 +35,7 @@ func CalculateTotalDelegations(
 	}
 
 	for _, position := range positions {
-		totalDelegationAsset := position.Value["Assets"][program.StakedAsset.String()]
+		totalDelegationAsset := position.Value.AssetAmount(program.StakedAsset)
 
 		// Add in the value of LP tokens, according to the ratio of the pools at the snapshot
 		for id, amt := range position.Value["Assets"] {
@@ -503,7 +503,7 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 	lpDaysByOwner := map[string]map[shared.AssetID]uint64{}
 	lpDaysByAsset := map[shared.AssetID]uint64{}
 	for _, p := range positions {
-		for id, amount := range p.Value["Assets"] {
+		for id, amount := range p.Value.AssetsExceptAda() {
 			assetId := shared.AssetID(id)
 
 			if poolLookup.IsLPToken(assetId) {
@@ -665,13 +665,13 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 
 		ownerValueByLP := map[string]shared.Value{}
 		for lpToken, amount := range perLPToken {
-			ownerValue["Assets"][program.EmittedAsset.String()] = ownerValue["Assets"][program.EmittedAsset.String()].Add(num.Uint64(amount))
+			ownerValue.AddAsset(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(amount)})
 			if amount > 0 {
 				ownerValueByLP[lpToken] = shared.ValueFromCoins(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(amount)})
 			}
 			total[ownerID] += amount
 		}
-		if ownerValue["Assets"][program.EmittedAsset.String()].Uint64() == 0 {
+		if ownerValue.AssetAmount(program.EmittedAsset).Uint64() == 0 {
 			continue
 		}
 		earning := types.Earning{
