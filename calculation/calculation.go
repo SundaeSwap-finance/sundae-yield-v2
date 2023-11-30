@@ -39,23 +39,26 @@ func CalculateTotalDelegations(
 
 		// Add in the value of LP tokens, according to the ratio of the pools at the snapshot
 
-		for id := range position.Value.AssetsExceptAda() {
-			assetId := shared.AssetID(id)
+		for policy, policyMap := range position.Value {
+			for _, amount := range policyMap {
 
-			if poolLookup.IsLPToken(assetId) {
-				pool, err := poolLookup.PoolByLPToken(ctx, assetId)
-				if err != nil {
-					return nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
-				}
-				if pool.AssetA == program.StakedAsset || pool.AssetB == program.StakedAsset {
-					frac := big.NewInt(position.Value.AssetAmount(assetId).Int64())
-					if pool.AssetA == program.StakedAsset {
-						frac = frac.Mul(frac, big.NewInt(int64(pool.AssetAQuantity)))
-					} else if pool.AssetB == program.StakedAsset {
-						frac = frac.Mul(frac, big.NewInt(int64(pool.AssetBQuantity)))
+				assetId := shared.AssetID(policy)
+
+				if poolLookup.IsLPToken(assetId) {
+					pool, err := poolLookup.PoolByLPToken(ctx, assetId)
+					if err != nil {
+						return nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
 					}
-					frac = frac.Div(frac, big.NewInt(int64(pool.TotalLPTokens)))
-					totalDelegationAsset = totalDelegationAsset.Add(num.Int(*frac))
+					if pool.AssetA == program.StakedAsset || pool.AssetB == program.StakedAsset {
+						frac := big.NewInt(amount.Int64())
+						if pool.AssetA == program.StakedAsset {
+							frac = frac.Mul(frac, big.NewInt(int64(pool.AssetAQuantity)))
+						} else if pool.AssetB == program.StakedAsset {
+							frac = frac.Mul(frac, big.NewInt(int64(pool.AssetBQuantity)))
+						}
+						frac = frac.Div(frac, big.NewInt(int64(pool.TotalLPTokens)))
+						totalDelegationAsset = totalDelegationAsset.Add(num.Int(*frac))
+					}
 				}
 			}
 		}
