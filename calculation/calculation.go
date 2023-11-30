@@ -39,7 +39,7 @@ func CalculateTotalDelegations(
 
 		// Add in the value of LP tokens, according to the ratio of the pools at the snapshot
 
-		for id := range position.Value {
+		for id := range position.Value.AssetsExceptAda() {
 			assetId := shared.AssetID(id)
 
 			if poolLookup.IsLPToken(assetId) {
@@ -146,26 +146,28 @@ func CalculateTotalLPAtSnapshot(
 			continue
 		}
 
-		for id := range position.Value {
+		for policy, policyMap := range position.Value {
 
-			assetId := shared.AssetID(id)
+			for _, amount := range policyMap {
+				assetId := shared.AssetID(policy)
 
-			if poolLookup.IsLPToken(assetId) {
-				pool, err := poolLookup.PoolByLPToken(ctx, assetId)
-				if err != nil {
-					return nil, nil, nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
-				}
+				if poolLookup.IsLPToken(assetId) {
 
-				amount := position.Value.AssetAmount(assetId)
-				poolsByIdent[pool.PoolIdent] = pool
-				lockedLPByIdent[pool.PoolIdent] += amount.Uint64()
-				if pool.AssetA == "" {
-					lockedLP := amount.BigInt()
-					totalLP := num.Uint64(pool.TotalLPTokens).BigInt()
-					numerator := big.NewInt(0).Mul(lockedLP, num.Uint64(pool.AssetAQuantity).BigInt())
-					assetA := big.NewInt(0).Div(numerator, totalLP)
-					valueByIdent[pool.PoolIdent] += assetA.Uint64() * 2
-					totalValue += assetA.Uint64() * 2
+					pool, err := poolLookup.PoolByLPToken(ctx, assetId)
+					if err != nil {
+						return nil, nil, nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
+					}
+
+					poolsByIdent[pool.PoolIdent] = pool
+					lockedLPByIdent[pool.PoolIdent] += amount.Uint64()
+					if pool.AssetA == "" {
+						lockedLP := amount.BigInt()
+						totalLP := num.Uint64(pool.TotalLPTokens).BigInt()
+						numerator := big.NewInt(0).Mul(lockedLP, num.Uint64(pool.AssetAQuantity).BigInt())
+						assetA := big.NewInt(0).Div(numerator, totalLP)
+						valueByIdent[pool.PoolIdent] += assetA.Uint64() * 2
+						totalValue += assetA.Uint64() * 2
+					}
 				}
 			}
 		}
