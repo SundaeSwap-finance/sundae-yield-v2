@@ -3,7 +3,7 @@ module github.com/SundaeSwap-finance/sundae-yield-v2
 go 1.20
 
 require (
-	github.com/SundaeSwap-finance/ogmigo/v6 v6.0.0-20231116225712-e5b9d1acbeeb
+	github.com/SundaeSwap-finance/ogmigo/v6 v6.0.0-20231130200217-319aa0a6bbdc
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/tj/assert v0.0.3
 	golang.org/x/crypto v0.0.0-20220314234659-1baeb1ce4c0b
