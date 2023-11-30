@@ -513,39 +513,42 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 	lpDaysByOwner := map[string]map[shared.AssetID]uint64{}
 	lpDaysByAsset := map[shared.AssetID]uint64{}
 	for _, p := range positions {
-		for id := range p.Value {
-			assetId := shared.AssetID(id)
+		for policy, policyMap := range p.Value {
+			for _, amount := range policyMap {
 
-			if poolLookup.IsLPToken(assetId) {
-				// Compute the (truncated) start and end time,
-				startTime := p.Slot
-				if startTime < minSlot {
-					startTime = minSlot
+				assetId := shared.AssetID(policy)
+
+				if poolLookup.IsLPToken(assetId) {
+					// Compute the (truncated) start and end time,
+					startTime := p.Slot
+					if startTime < minSlot {
+						startTime = minSlot
+					}
+					endTime := p.SpentSlot
+					if p.SpentTransaction == "" || p.SpentSlot > maxSlot {
+						endTime = maxSlot
+					}
+					if endTime == startTime {
+						continue
+					}
+					// so we can compute what fraction of the day this position counts for
+					secondsLocked := endTime - startTime
+
+					weight := big.NewInt(0).SetUint64(secondsLocked)
+					weight = weight.Mul(weight, amount.BigInt())
+					weight = weight.Div(weight, big.NewInt(0).SetUint64(maxSlot-minSlot))
+
+					existingLPDays, ok := lpDaysByOwner[p.OwnerID]
+					if !ok {
+						existingLPDays = map[shared.AssetID]uint64{}
+					}
+					newWeight := existingLPDays[assetId] + weight.Uint64()
+
+					existingLPDays[assetId] = newWeight
+					lpDaysByOwner[p.OwnerID] = existingLPDays
+
+					lpDaysByAsset[assetId] += weight.Uint64()
 				}
-				endTime := p.SpentSlot
-				if p.SpentTransaction == "" || p.SpentSlot > maxSlot {
-					endTime = maxSlot
-				}
-				if endTime == startTime {
-					continue
-				}
-				// so we can compute what fraction of the day this position counts for
-				secondsLocked := endTime - startTime
-
-				weight := big.NewInt(0).SetUint64(secondsLocked)
-				weight = weight.Mul(weight, p.Value.AssetAmount(assetId).BigInt())
-				weight = weight.Div(weight, big.NewInt(0).SetUint64(maxSlot-minSlot))
-
-				existingLPDays, ok := lpDaysByOwner[p.OwnerID]
-				if !ok {
-					existingLPDays = map[shared.AssetID]uint64{}
-				}
-				newWeight := existingLPDays[assetId] + weight.Uint64()
-
-				existingLPDays[assetId] = newWeight
-				lpDaysByOwner[p.OwnerID] = existingLPDays
-
-				lpDaysByAsset[assetId] += weight.Uint64()
 			}
 		}
 	}
