@@ -3,6 +3,7 @@ package types
 import (
 	"time"
 
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
 	// "github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
 )
@@ -99,6 +100,6 @@ type Earning struct {
 	Program        string
 	EarnedDate     Date
 	ExpirationDate *time.Time
-	Value          shared.Value
-	ValueByLPToken map[string]shared.Value
+	Value          compatibility.CompatibleValue
+	ValueByLPToken map[string]compatibility.CompatibleValue
 }

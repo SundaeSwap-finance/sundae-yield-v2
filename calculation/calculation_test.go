@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/num"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
 	"github.com/SundaeSwap-finance/sundae-yield-v2/types"
@@ -564,8 +565,8 @@ func Test_EmissionsToOwners(t *testing.T) {
 	assert.EqualValues(t, map[string]map[string]uint64{"A": {"LP_X": 334, "LP_Y": 500}, "B": {"LP_X": 666}}, emissionsByOwner)
 }
 
-func makeValue(token string, amt uint64) shared.Value {
-	return shared.ValueFromCoins(shared.Coin{AssetId: shared.AssetID(token), Amount: num.Uint64(amt)})
+func makeValue(token string, amt uint64) compatibility.CompatibleValue {
+	return compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: shared.AssetID(token), Amount: num.Uint64(amt)}))
 }
 
 func Test_EmissionsToEarnings(t *testing.T) {
@@ -587,7 +588,7 @@ func Test_EmissionsToEarnings(t *testing.T) {
 		{
 			OwnerID: "A", Program: program.ID, Owner: ownerA, EarnedDate: now,
 			Value: makeValue("Emitted", 1000),
-			ValueByLPToken: map[string]shared.Value{
+			ValueByLPToken: map[string]compatibility.CompatibleValue{
 				"LP_X": makeValue("Emitted", 900),
 				"LP_Y": makeValue("Emitted", 100),
 			},
@@ -595,7 +596,7 @@ func Test_EmissionsToEarnings(t *testing.T) {
 		{
 			OwnerID: "B", Program: program.ID, Owner: ownerB, EarnedDate: now,
 			Value: makeValue("Emitted", 1500),
-			ValueByLPToken: map[string]shared.Value{
+			ValueByLPToken: map[string]compatibility.CompatibleValue{
 				"LP_X": makeValue("Emitted", 1000),
 				"LP_Y": makeValue("Emitted", 200),
 				"LP_Z": makeValue("Emitted", 300),
@@ -626,7 +627,7 @@ func Test_Calculate_Earnings(t *testing.T) {
 			previousDays = previousDays[1:]
 		}
 		for _, e := range calcOutputs.Earnings {
-			totalEarnings += e.Value.AssetAmount(program.EmittedAsset).Uint64()
+			totalEarnings += e.Value.ToValue().AssetAmount(program.EmittedAsset).Uint64()
 		}
 		totalFixedEmissions := uint64(0)
 		for _, amt := range program.FixedEmissions {

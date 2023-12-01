@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/num"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
 	"github.com/SundaeSwap-finance/sundae-yield-v2/types"
@@ -676,11 +677,13 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 	for ownerID, perLPToken := range emissionsByOwner {
 		ownerValue := shared.ValueFromCoins(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(0)})
 
-		ownerValueByLP := map[string]shared.Value{}
+		ownerValueByLP := map[string]compatibility.CompatibleValue{}
 		for lpToken, amount := range perLPToken {
 			ownerValue.AddAsset(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(amount)})
 			if amount > 0 {
-				ownerValueByLP[lpToken] = shared.ValueFromCoins(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(amount)})
+				coinValue := shared.ValueFromCoins(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(amount)})
+
+				ownerValueByLP[lpToken] = compatibility.CompatibleValue(coinValue)
 			}
 			total[ownerID] += amount
 		}
@@ -692,7 +695,7 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 			Owner:          ownersByID[ownerID],
 			Program:        program.ID,
 			EarnedDate:     date,
-			Value:          ownerValue,
+			Value:          compatibility.CompatibleValue(ownerValue),
 			ValueByLPToken: ownerValueByLP,
 		}
 		if program.EarningExpiration != nil {
