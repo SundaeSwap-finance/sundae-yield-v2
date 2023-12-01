@@ -627,7 +627,7 @@ func Test_Calculate_Earnings(t *testing.T) {
 			previousDays = previousDays[1:]
 		}
 		for _, e := range calcOutputs.Earnings {
-			totalEarnings += e.Value.ToValue().AssetAmount(program.EmittedAsset).Uint64()
+			totalEarnings += shared.Value(e.Value).AssetAmount(program.EmittedAsset).Uint64()
 		}
 		totalFixedEmissions := uint64(0)
 		for _, amt := range program.FixedEmissions {
