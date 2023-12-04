@@ -41,9 +41,9 @@ func CalculateTotalDelegations(
 		// Add in the value of LP tokens, according to the ratio of the pools at the snapshot
 
 		for policy, policyMap := range position.Value {
-			for _, amount := range policyMap {
+			for assetName, amount := range policyMap {
 
-				assetId := shared.AssetID(policy)
+				assetId := shared.FromSeparate(policy, assetName)
 
 				if poolLookup.IsLPToken(assetId) {
 					pool, err := poolLookup.PoolByLPToken(ctx, assetId)
@@ -152,8 +152,8 @@ func CalculateTotalLPAtSnapshot(
 
 		for policy, policyMap := range position.Value {
 
-			for _, amount := range policyMap {
-				assetId := shared.AssetID(policy)
+			for assetName, amount := range policyMap {
+				assetId := shared.FromSeparate(policy, assetName)
 
 				if poolLookup.IsLPToken(assetId) {
 
@@ -515,9 +515,8 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 	lpDaysByAsset := map[shared.AssetID]uint64{}
 	for _, p := range positions {
 		for policy, policyMap := range p.Value {
-			for _, amount := range policyMap {
-
-				assetId := shared.AssetID(policy)
+			for assetName, amount := range policyMap {
+				assetId := shared.FromSeparate(policy, assetName)
 
 				if poolLookup.IsLPToken(assetId) {
 					// Compute the (truncated) start and end time,
