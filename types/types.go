@@ -90,7 +90,7 @@ type Position struct {
 	SpentTransaction string
 	SpentSlot        uint64
 
-	Value      shared.Value
+	Value      compatibility.CompatibleValue
 	Delegation []Delegation
 }
 

@@ -32,7 +32,7 @@ func samplePosition(owner string, staked int64, delegations ...types.Delegation)
 		OwnerID:    owner,
 		Slot:       0,
 		SpentSlot:  0,
-		Value:      shared.ValueFromCoins(shared.Coin{AssetId: shared.AssetID("Staked"), Amount: num.Int64(staked)}),
+		Value:      compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: shared.AssetID("Staked"), Amount: num.Int64(staked)})),
 		Delegation: delegations,
 	}
 }
@@ -134,7 +134,9 @@ func Test_TotalDelegations(t *testing.T) {
 	positions = []types.Position{
 		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 	}
-	positions[0].Value.AddAsset(shared.Coin{AssetId: "LP_01", Amount: num.Uint64(50_000)})
+	value := shared.Value(positions[0].Value)
+	value.AddAsset(shared.Coin{AssetId: "LP_01", Amount: num.Uint64(50_000)})
+	positions[0].Value = compatibility.CompatibleValue(value)
 	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, pools)
 	assert.Nil(t, err)
 	assert.EqualValues(t, 75_000, int64(delegationsByPool["01"]))
@@ -290,9 +292,9 @@ func Test_QualifiedPools(t *testing.T) {
 
 func Test_CalculateTotalLP(t *testing.T) {
 	positions := []types.Position{
-		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
-		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)})},
-		{OwnerID: "C", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(500)})},
+		{OwnerID: "A", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)}))},
+		{OwnerID: "B", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)}))},
+		{OwnerID: "C", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(500)}))},
 	}
 	pools := MockLookup{
 		"X": {PoolIdent: "X", LPAsset: "LP_X", TotalLPTokens: 500, AssetAQuantity: 1000},
@@ -311,9 +313,9 @@ func Test_CalculateTotalLP(t *testing.T) {
 
 func Test_CalculateTotalLPWithAssetNames(t *testing.T) {
 	positions := []types.Position{
-		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X.Asset1", Amount: num.Uint64(100)})},
-		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X.Asset1", Amount: num.Uint64(200)})},
-		{OwnerID: "C", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_Y.Asset1", Amount: num.Uint64(500)})},
+		{OwnerID: "A", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X.Asset1", Amount: num.Uint64(100)}))},
+		{OwnerID: "B", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X.Asset1", Amount: num.Uint64(200)}))},
+		{OwnerID: "C", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_Y.Asset1", Amount: num.Uint64(500)}))},
 	}
 	pools := MockLookup{
 		"X": {PoolIdent: "X", LPAsset: "LP_X.Asset1", TotalLPTokens: 500, AssetAQuantity: 1000},
@@ -440,7 +442,7 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y"},
 	}
 	byOwner, byAsset := TotalLPDaysByOwnerAndAsset([]types.Position{
-		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
+		{OwnerID: "A", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)}))},
 	}, pools, 0, 86400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
 		"A": {"LP_X": 100},
@@ -450,8 +452,8 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	}, byAsset)
 
 	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
-		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
-		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)})},
+		{OwnerID: "A", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)}))},
+		{OwnerID: "B", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)}))},
 	}, pools, 0, 86400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
 		"A": {"LP_X": 100},
@@ -462,9 +464,9 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	}, byAsset)
 
 	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
-		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
-		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)})},
-		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
+		{OwnerID: "A", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)}))},
+		{OwnerID: "B", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)}))},
+		{OwnerID: "B", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)}))},
 	}, pools, 0, 86400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
 		"A": {"LP_X": 100},
@@ -475,9 +477,9 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	}, byAsset)
 
 	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
-		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
-		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)}, shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(150)})},
-		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
+		{OwnerID: "A", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)}))},
+		{OwnerID: "B", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)}, shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(150)}))},
+		{OwnerID: "B", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)}))},
 	}, pools, 0, 86400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
 		"A": {"LP_X": 100},
@@ -491,14 +493,14 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 	// Test the time-weighting bits
 	byOwner, byAsset = TotalLPDaysByOwnerAndAsset([]types.Position{
 		// Half day
-		{OwnerID: "A", Slot: 143200, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)})},
+		{OwnerID: "A", Slot: 143200, Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(100)}))},
 		// Quarter day, with rounding down
-		{OwnerID: "B", Slot: 143200, SpentTransaction: "A", SpentSlot: 164800, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)}, shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(150)})},
+		{OwnerID: "B", Slot: 143200, SpentTransaction: "A", SpentSlot: 164800, Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)}, shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(150)}))},
 		// Lockup before the day starts
-		{OwnerID: "C", Slot: 12, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
+		{OwnerID: "C", Slot: 12, Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)}))},
 		// Consecutive positions, constituting half, plus after day ends
-		{OwnerID: "D", Slot: 143200, SpentTransaction: "B", SpentSlot: 164800, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
-		{OwnerID: "D", Slot: 164800, SpentTransaction: "C", SpentSlot: 264800, Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)})},
+		{OwnerID: "D", Slot: 143200, SpentTransaction: "B", SpentSlot: 164800, Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)}))},
+		{OwnerID: "D", Slot: 164800, SpentTransaction: "C", SpentSlot: 264800, Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(300)}))},
 	}, pools, 100000, 186400)
 	assert.EqualValues(t, map[string]map[shared.AssetID]uint64{
 		"A": {"LP_X": 50},
@@ -712,7 +714,7 @@ func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPoo
 		position := types.Position{
 			OwnerID: owner,
 			Owner:   types.MultisigScript{Signature: &types.Signature{KeyHash: []byte(owner)}},
-			Value:   shared.ValueFromCoins(shared.Coin{AssetId: program.StakedAsset, Amount: num.Int64(numSundae)}),
+			Value:   compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: program.StakedAsset, Amount: num.Int64(numSundae)})),
 		}
 		numDelegations := rand.Intn(40)
 		for j := 0; j < numDelegations; j++ {
@@ -731,15 +733,19 @@ func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPoo
 			pool := rand.Intn(numPools)
 			lp := shared.AssetID(fmt.Sprintf("LP_%v", pool))
 			amt := rand.Int63n(30_000_000)
+			value := shared.Value(position.Value)
+			value.AddAsset(shared.Coin{AssetId: lp, Amount: num.Int64(amt)})
 
-			position.Value.AddAsset(shared.Coin{AssetId: lp, Amount: num.Int64(amt)})
+			position.Value = compatibility.CompatibleValue(value)
 			lockedByPool[pool] += uint64(amt)
 		}
 		numOtherTokens := rand.Intn(5)
 		for j := 0; j < numOtherTokens; j++ {
 			token := shared.AssetID(fmt.Sprintf("Random_%v", numOtherTokens))
+			value := shared.Value(position.Value)
+			value.AddAsset(shared.Coin{AssetId: token, Amount: num.Int64(rand.Int63n(30_000_000_000))})
 
-			position.Value.AddAsset(shared.Coin{AssetId: token, Amount: num.Int64(rand.Int63n(30_000_000_000))})
+			position.Value = compatibility.CompatibleValue(value)
 		}
 
 		positions = append(positions, position)

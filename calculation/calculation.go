@@ -36,7 +36,7 @@ func CalculateTotalDelegations(
 	}
 
 	for _, position := range positions {
-		totalDelegationAsset := position.Value.AssetAmount(program.StakedAsset)
+		totalDelegationAsset := shared.Value(position.Value).AssetAmount(program.StakedAsset)
 
 		// Add in the value of LP tokens, according to the ratio of the pools at the snapshot
 
