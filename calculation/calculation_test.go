@@ -309,6 +309,28 @@ func Test_CalculateTotalLP(t *testing.T) {
 	assert.EqualValues(t, 1300, totalValue)
 }
 
+func Test_CalculateTotalLPWithAssetNames(t *testing.T) {
+	positions := []types.Position{
+		{OwnerID: "A", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X.Asset1", Amount: num.Uint64(100)})},
+		{OwnerID: "B", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_X.Asset1", Amount: num.Uint64(200)})},
+		{OwnerID: "C", Value: shared.ValueFromCoins(shared.Coin{AssetId: "LP_Y.Asset1", Amount: num.Uint64(500)})},
+	}
+	pools := MockLookup{
+		"X": {PoolIdent: "X", LPAsset: "LP_X.Asset1", TotalLPTokens: 500, AssetAQuantity: 1000},
+		"Y": {PoolIdent: "Y", LPAsset: "LP_Y.Asset1", TotalLPTokens: 1000, AssetAQuantity: 100},
+	}
+
+	lockedLP, totalLP, totalValueByPool, totalValue, err := CalculateTotalLPAtSnapshot(context.Background(), 0, positions, pools)
+	assert.Nil(t, err)
+	assert.EqualValues(t, 300, lockedLP["X"])
+	assert.EqualValues(t, 500, lockedLP["Y"])
+	assert.EqualValues(t, 500, totalLP["X"])
+	assert.EqualValues(t, 1000, totalLP["Y"])
+	assert.EqualValues(t, 1200, totalValueByPool["X"])
+	assert.EqualValues(t, 100, totalValueByPool["Y"])
+	assert.EqualValues(t, 1300, totalValue)
+}
+
 func Test_PoolForEmissions(t *testing.T) {
 	program := sampleProgram(500_000)
 	program.MaxPoolCount = 2
