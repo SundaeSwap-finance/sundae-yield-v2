@@ -7,16 +7,17 @@ import (
 	"sort"
 	"time"
 
-	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync"
-	"github.com/SundaeSwap-finance/ogmigo/ouroboros/chainsync/num"
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/num"
+	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
 	"github.com/SundaeSwap-finance/sundae-yield-v2/types"
 )
 
 type PoolLookup interface {
 	PoolByIdent(ctx context.Context, poolIdent string) (types.Pool, error)
-	PoolByLPToken(ctx context.Context, lpToken chainsync.AssetID) (types.Pool, error)
-	IsLPToken(assetId chainsync.AssetID) bool
-	LPTokenToPoolIdent(lpToken chainsync.AssetID) (string, error)
+	PoolByLPToken(ctx context.Context, lpToken shared.AssetID) (types.Pool, error)
+	IsLPToken(assetId shared.AssetID) bool
+	LPTokenToPoolIdent(lpToken shared.AssetID) (string, error)
 }
 
 // Calculate the total amount of sundae delegated to each pool, according to each users chosen "weighting"
@@ -35,24 +36,30 @@ func CalculateTotalDelegations(
 	}
 
 	for _, position := range positions {
-		totalDelegationAsset := position.Value.Assets[program.StakedAsset]
+		totalDelegationAsset := shared.Value(position.Value).AssetAmount(program.StakedAsset)
 
 		// Add in the value of LP tokens, according to the ratio of the pools at the snapshot
-		for assetId, amt := range position.Value.Assets {
-			if poolLookup.IsLPToken(assetId) {
-				pool, err := poolLookup.PoolByLPToken(ctx, assetId)
-				if err != nil {
-					return nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
-				}
-				if pool.AssetA == program.StakedAsset || pool.AssetB == program.StakedAsset {
-					frac := big.NewInt(amt.Int64())
-					if pool.AssetA == program.StakedAsset {
-						frac = frac.Mul(frac, big.NewInt(int64(pool.AssetAQuantity)))
-					} else if pool.AssetB == program.StakedAsset {
-						frac = frac.Mul(frac, big.NewInt(int64(pool.AssetBQuantity)))
+
+		for policy, policyMap := range position.Value {
+			for assetName, amount := range policyMap {
+
+				assetId := shared.FromSeparate(policy, assetName)
+
+				if poolLookup.IsLPToken(assetId) {
+					pool, err := poolLookup.PoolByLPToken(ctx, assetId)
+					if err != nil {
+						return nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
 					}
-					frac = frac.Div(frac, big.NewInt(int64(pool.TotalLPTokens)))
-					totalDelegationAsset = totalDelegationAsset.Add(num.Int(*frac))
+					if pool.AssetA == program.StakedAsset || pool.AssetB == program.StakedAsset {
+						frac := big.NewInt(amount.Int64())
+						if pool.AssetA == program.StakedAsset {
+							frac = frac.Mul(frac, big.NewInt(int64(pool.AssetAQuantity)))
+						} else if pool.AssetB == program.StakedAsset {
+							frac = frac.Mul(frac, big.NewInt(int64(pool.AssetBQuantity)))
+						}
+						frac = frac.Div(frac, big.NewInt(int64(pool.TotalLPTokens)))
+						totalDelegationAsset = totalDelegationAsset.Add(num.Int(*frac))
+					}
 				}
 			}
 		}
@@ -142,21 +149,29 @@ func CalculateTotalLPAtSnapshot(
 		if !activeAtSnapshot {
 			continue
 		}
-		for assetId, amount := range position.Value.Assets {
-			if poolLookup.IsLPToken(assetId) {
-				pool, err := poolLookup.PoolByLPToken(ctx, assetId)
-				if err != nil {
-					return nil, nil, nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
-				}
-				poolsByIdent[pool.PoolIdent] = pool
-				lockedLPByIdent[pool.PoolIdent] += amount.Uint64()
-				if pool.AssetA == "" {
-					lockedLP := amount.BigInt()
-					totalLP := num.Uint64(pool.TotalLPTokens).BigInt()
-					numerator := big.NewInt(0).Mul(lockedLP, num.Uint64(pool.AssetAQuantity).BigInt())
-					assetA := big.NewInt(0).Div(numerator, totalLP)
-					valueByIdent[pool.PoolIdent] += assetA.Uint64() * 2
-					totalValue += assetA.Uint64() * 2
+
+		for policy, policyMap := range position.Value {
+
+			for assetName, amount := range policyMap {
+				assetId := shared.FromSeparate(policy, assetName)
+
+				if poolLookup.IsLPToken(assetId) {
+
+					pool, err := poolLookup.PoolByLPToken(ctx, assetId)
+					if err != nil {
+						return nil, nil, nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
+					}
+
+					poolsByIdent[pool.PoolIdent] = pool
+					lockedLPByIdent[pool.PoolIdent] += amount.Uint64()
+					if pool.AssetA == "" {
+						lockedLP := amount.BigInt()
+						totalLP := num.Uint64(pool.TotalLPTokens).BigInt()
+						numerator := big.NewInt(0).Mul(lockedLP, num.Uint64(pool.AssetAQuantity).BigInt())
+						assetA := big.NewInt(0).Div(numerator, totalLP)
+						valueByIdent[pool.PoolIdent] += assetA.Uint64() * 2
+						totalValue += assetA.Uint64() * 2
+					}
 				}
 			}
 		}
@@ -495,41 +510,45 @@ func TruncateEmissions(program types.Program, emissionsByPool map[string]uint64)
 
 // Compute the total LP token days that each owner has; We multiply the LP tokens by seconds they were locked, and then divide by 86400.
 // This effectively divides the LP tokens by the fraction of the day they are locked, to prevent someone locking in the last minute of the day to receive rewards
-func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLookup, minSlot uint64, maxSlot uint64) (map[string]map[chainsync.AssetID]uint64, map[chainsync.AssetID]uint64) {
-	lpDaysByOwner := map[string]map[chainsync.AssetID]uint64{}
-	lpDaysByAsset := map[chainsync.AssetID]uint64{}
+func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLookup, minSlot uint64, maxSlot uint64) (map[string]map[shared.AssetID]uint64, map[shared.AssetID]uint64) {
+	lpDaysByOwner := map[string]map[shared.AssetID]uint64{}
+	lpDaysByAsset := map[shared.AssetID]uint64{}
 	for _, p := range positions {
-		for assetId, amount := range p.Value.Assets {
-			if poolLookup.IsLPToken(assetId) {
-				// Compute the (truncated) start and end time,
-				startTime := p.Slot
-				if startTime < minSlot {
-					startTime = minSlot
-				}
-				endTime := p.SpentSlot
-				if p.SpentTransaction == "" || p.SpentSlot > maxSlot {
-					endTime = maxSlot
-				}
-				if endTime == startTime {
-					continue
-				}
-				// so we can compute what fraction of the day this position counts for
-				secondsLocked := endTime - startTime
+		for policy, policyMap := range p.Value {
+			for assetName, amount := range policyMap {
+				assetId := shared.FromSeparate(policy, assetName)
 
-				weight := big.NewInt(0).SetUint64(secondsLocked)
-				weight = weight.Mul(weight, amount.BigInt())
-				weight = weight.Div(weight, big.NewInt(0).SetUint64(maxSlot-minSlot))
+				if poolLookup.IsLPToken(assetId) {
+					// Compute the (truncated) start and end time,
+					startTime := p.Slot
+					if startTime < minSlot {
+						startTime = minSlot
+					}
+					endTime := p.SpentSlot
+					if p.SpentTransaction == "" || p.SpentSlot > maxSlot {
+						endTime = maxSlot
+					}
+					if endTime == startTime {
+						continue
+					}
+					// so we can compute what fraction of the day this position counts for
+					secondsLocked := endTime - startTime
 
-				existingLPDays, ok := lpDaysByOwner[p.OwnerID]
-				if !ok {
-					existingLPDays = map[chainsync.AssetID]uint64{}
+					weight := big.NewInt(0).SetUint64(secondsLocked)
+					weight = weight.Mul(weight, amount.BigInt())
+					weight = weight.Div(weight, big.NewInt(0).SetUint64(maxSlot-minSlot))
+
+					existingLPDays, ok := lpDaysByOwner[p.OwnerID]
+					if !ok {
+						existingLPDays = map[shared.AssetID]uint64{}
+					}
+					newWeight := existingLPDays[assetId] + weight.Uint64()
+
+					existingLPDays[assetId] = newWeight
+					lpDaysByOwner[p.OwnerID] = existingLPDays
+
+					lpDaysByAsset[assetId] += weight.Uint64()
 				}
-				newWeight := existingLPDays[assetId] + weight.Uint64()
-
-				existingLPDays[assetId] = newWeight
-				lpDaysByOwner[p.OwnerID] = existingLPDays
-
-				lpDaysByAsset[assetId] += weight.Uint64()
 			}
 		}
 	}
@@ -537,8 +556,8 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 }
 
 // Switch the map key from pool Ident to LP token
-func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup PoolLookup) (map[chainsync.AssetID]uint64, error) {
-	byLPAsset := map[chainsync.AssetID]uint64{}
+func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup PoolLookup) (map[shared.AssetID]uint64, error) {
+	byLPAsset := map[shared.AssetID]uint64{}
 	for poolIdent, amount := range byPool {
 		if amount == 0 {
 			continue
@@ -553,7 +572,7 @@ func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup Po
 }
 
 // Switch the map key from LP token to pool Ident
-func RegroupByPool(ctx context.Context, byAsset map[chainsync.AssetID]uint64, poolLookup PoolLookup) (map[string]uint64, error) {
+func RegroupByPool(ctx context.Context, byAsset map[shared.AssetID]uint64, poolLookup PoolLookup) (map[string]uint64, error) {
 	// Note: assumes bijection
 	byIdent := map[string]uint64{}
 	for asset, amount := range byAsset {
@@ -570,11 +589,11 @@ func RegroupByPool(ctx context.Context, byAsset map[chainsync.AssetID]uint64, po
 }
 
 // Split the daily emissions of each pool among the owners of LP tokens, according to their total LP weight
-func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[chainsync.AssetID]uint64, emissionsByAsset map[chainsync.AssetID]uint64, lpTokensByAsset map[chainsync.AssetID]uint64) map[string]map[string]uint64 {
+func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[shared.AssetID]uint64, emissionsByAsset map[shared.AssetID]uint64, lpTokensByAsset map[shared.AssetID]uint64) map[string]map[string]uint64 {
 	// expand out the lpTokensByOwner, so we can sort them canonically for the round-robin
 	type OwnerStake struct {
 		OwnerID string
-		Value   map[chainsync.AssetID]uint64
+		Value   map[shared.AssetID]uint64
 	}
 	var ownerStakes []OwnerStake
 	for ownerId, weights := range lpWeightByOwner {
@@ -590,7 +609,7 @@ func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[chainsync.AssetI
 
 	// Now loop over each, and allocate a portion of the emissions
 	emissionsByOwner := map[string]map[string]uint64{}
-	allocatedByAsset := map[chainsync.AssetID]uint64{}
+	allocatedByAsset := map[shared.AssetID]uint64{}
 	for _, ownerStake := range ownerStakes {
 		for assetId, amount := range ownerStake.Value {
 			emission := emissionsByAsset[assetId]
@@ -630,7 +649,7 @@ func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[chainsync.AssetI
 				// It doesn't actually matter which one we add it to, but this makes it determinsitic
 				minLP := ""
 				for asset := range m {
-					if _, ok := emissionsByAsset[chainsync.AssetID(asset)]; ok && (minLP == "" || asset < minLP) {
+					if _, ok := emissionsByAsset[shared.AssetID(asset)]; ok && (minLP == "" || asset < minLP) {
 						minLP = asset
 					}
 				}
@@ -655,26 +674,19 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 	var ret []types.Earning
 	total := map[string]uint64{}
 	for ownerID, perLPToken := range emissionsByOwner {
-		ownerValue := chainsync.Value{
-			Coins: num.Int64(0),
-			Assets: map[chainsync.AssetID]num.Int{
-				program.EmittedAsset: num.Uint64(0),
-			},
-		}
-		ownerValueByLP := map[string]chainsync.Value{}
+		ownerValue := shared.ValueFromCoins(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(0)})
+
+		ownerValueByLP := map[string]compatibility.CompatibleValue{}
 		for lpToken, amount := range perLPToken {
-			ownerValue.Assets[program.EmittedAsset] = ownerValue.Assets[program.EmittedAsset].Add(num.Uint64(amount))
+			ownerValue.AddAsset(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(amount)})
 			if amount > 0 {
-				ownerValueByLP[lpToken] = chainsync.Value{
-					Coins: num.Int64(0),
-					Assets: map[chainsync.AssetID]num.Int{
-						program.EmittedAsset: num.Uint64(amount),
-					},
-				}
+				coinValue := shared.ValueFromCoins(shared.Coin{AssetId: program.EmittedAsset, Amount: num.Uint64(amount)})
+
+				ownerValueByLP[lpToken] = compatibility.CompatibleValue(coinValue)
 			}
 			total[ownerID] += amount
 		}
-		if ownerValue.Assets[program.EmittedAsset].Uint64() == 0 {
+		if ownerValue.AssetAmount(program.EmittedAsset).Uint64() == 0 {
 			continue
 		}
 		earning := types.Earning{
@@ -682,7 +694,7 @@ func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emission
 			Owner:          ownersByID[ownerID],
 			Program:        program.ID,
 			EarnedDate:     date,
-			Value:          ownerValue,
+			Value:          compatibility.CompatibleValue(ownerValue),
 			ValueByLPToken: ownerValueByLP,
 		}
 		if program.EarningExpiration != nil {
