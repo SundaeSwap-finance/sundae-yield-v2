@@ -300,9 +300,14 @@ func DisqualifyPools(ctx context.Context, program types.Program, lockedLPByPool 
 func SumDelegationWindow(program types.Program, qualifyingDelegationsPerPool map[string]uint64, previousCalculations []CalculationOutputs) (map[string]uint64, error) {
 	// A 3 day delegation window is today, plus two previous days
 	// but, when a program is just starting, we don't have days to base it off of so we use a <
-	if (program.ConsecutiveDelegationWindow == 0 && len(previousCalculations) != 0) ||
-		program.ConsecutiveDelegationWindow-1 < len(previousCalculations) {
-		return nil, fmt.Errorf("too many historical snapshots; have %v snapshots, for a %v day window", len(previousCalculations), program.ConsecutiveDelegationWindow)
+	if program.ConsecutiveDelegationWindow == 0 {
+		if len(previousCalculations) != 0 {
+			return nil, fmt.Errorf("too many historical snapshots; have %v snapshots, for a %v day window", len(previousCalculations), program.ConsecutiveDelegationWindow)
+		}
+	} else {
+		if program.ConsecutiveDelegationWindow-1 < len(previousCalculations) {
+			return nil, fmt.Errorf("too many historical snapshots; have %v snapshots, for a %v day window", len(previousCalculations), program.ConsecutiveDelegationWindow)
+		}
 	}
 	// Note: we assume the snapshots are from previous consecutive days, since checking this for correctness would be a little awkward
 
