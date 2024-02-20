@@ -44,6 +44,11 @@ func CalculateTotalDelegations(
 				if err != nil {
 					return nil, 0, fmt.Errorf("failed to lookup pool for LP token %v: %w", assetId, err)
 				}
+				if pool.TotalLPTokens == 0 {
+					// The pool has since been deleted.
+					// So, as a corner case, we just skip this LP asset
+					continue
+				}
 				if pool.AssetA == program.StakedAsset || pool.AssetB == program.StakedAsset {
 					frac := big.NewInt(amt.Int64())
 					if pool.AssetA == program.StakedAsset {
