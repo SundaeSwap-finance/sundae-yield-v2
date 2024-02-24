@@ -20,3 +20,12 @@ func Test_UnmarshalDatum(t *testing.T) {
 		},
 	}, datum)
 }
+func Test_UnmarshalNil(t *testing.T) {
+	bytes := mustDecode(t, "d8799fd8799f581c121fd22e0b57ac206fefc763f8bfa0771919f5218b40691eea4514d0ff80ff")
+	var datum StakeDatum
+	assert.Nil(t, cbor.Unmarshal(bytes, &datum))
+	assert.EqualValues(t, StakeDatum{
+		Owner:       MultisigScript{Signature: &Signature{KeyHash: mustDecode(t, "121fd22e0b57ac206fefc763f8bfa0771919f5218b40691eea4514d0")}},
+		Delegations: nil,
+	}, datum)
+}
