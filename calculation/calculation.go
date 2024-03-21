@@ -643,7 +643,7 @@ func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[shared.AssetID]u
 	for assetId, allocatedAmount := range allocatedByAsset {
 		remainder := int(emissionsByAsset[assetId] - allocatedAmount)
 		if remainder < 0 {
-			panic("emitted more to users than the allocated emissions for a pool, somehow")
+			panic(fmt.Sprintf("emitted %v more to users than the allocated emissions for a pool, somehow", remainder))
 		} else if remainder > 0 {
 			i := 0
 			for remainder > 0 {
