@@ -208,8 +208,24 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 	// if it's covered by one of the "eligible" criteria, we'll flip it true
 	// if it's covered by one of the "disqualified" criteria, we'll flip it back false
 	// BUT, if the "eligible" criteria lists are all null, then every pool starts eligible, so this needs to start true
-	qualified := program.EligiblePools == nil && program.EligibleAssets == nil && program.EligiblePairs == nil
+	qualified := program.EligibleVersions == nil &&
+		program.EligiblePools == nil &&
+		program.EligibleAssets == nil &&
+		program.EligiblePairs == nil
 	reason := ""
+	if program.EligibleVersions != nil {
+		found := false
+		for _, version := range program.EligibleVersions {
+			if version == pool.Version {
+				qualified = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			reason += fmt.Sprintf("Program lists eligible versions, but doesn't list this version (%v); ", pool.Version)
+		}
+	}
 	if program.EligiblePools != nil {
 		found := false
 		for _, poolIdent := range program.EligiblePools {
@@ -247,6 +263,15 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 		}
 		if !found {
 			reason += "Program lists eligible pairs, but doesn't list these two assets as an eligible pair; "
+		}
+	}
+	if program.DisqualifiedVersions != nil {
+		for _, version := range program.DisqualifiedVersions {
+			if version == pool.Version {
+				qualified = false
+				reason += fmt.Sprintf("Version (%v) is explicitly disqualified; ", pool.Version)
+				break
+			}
 		}
 	}
 	if program.DisqualifiedPools != nil {

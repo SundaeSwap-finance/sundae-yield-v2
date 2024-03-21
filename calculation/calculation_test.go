@@ -223,9 +223,11 @@ func Test_AtLeastOnePercent(t *testing.T) {
 
 func Test_QualifiedPools(t *testing.T) {
 	program := sampleProgram(500_000)
-	poolA := types.Pool{PoolIdent: "A", AssetA: "A", AssetB: "X", TotalLPTokens: 1500}
-	poolB := types.Pool{PoolIdent: "B", AssetA: "B", AssetB: "X", TotalLPTokens: 1500}
-	poolC := types.Pool{PoolIdent: "C", AssetA: "C", AssetB: "Y", TotalLPTokens: 1500}
+	poolA := types.Pool{Version: "V1", PoolIdent: "A", AssetA: "A", AssetB: "X", TotalLPTokens: 1500}
+	poolB := types.Pool{Version: "V1", PoolIdent: "B", AssetA: "B", AssetB: "X", TotalLPTokens: 1500}
+	poolC := types.Pool{Version: "V1", PoolIdent: "C", AssetA: "C", AssetB: "Y", TotalLPTokens: 1500}
+	poolD := types.Pool{Version: "V3", PoolIdent: "D", AssetA: "A", AssetB: "X", TotalLPTokens: 1500}
+	poolE := types.Pool{Version: "V3-stable", PoolIdent: "D", AssetA: "A", AssetB: "X", TotalLPTokens: 1500}
 
 	assertQualified := func(pool types.Pool, qty uint64) {
 		actual, _ := isPoolQualified(program, pool, qty)
@@ -239,6 +241,18 @@ func Test_QualifiedPools(t *testing.T) {
 	assertQualified(poolA, 150)
 	assertQualified(poolA, 500)
 	assertDisqualified(poolA, 10)
+
+	program.EligibleVersions = []string{"V1"}
+	assertQualified(poolA, 150)
+	assertDisqualified(poolD, 150)
+	assertDisqualified(poolE, 150)
+
+	program.EligibleVersions = []string{"V1", "V3"}
+	assertQualified(poolA, 150)
+	assertQualified(poolD, 150)
+	assertDisqualified(poolE, 150)
+
+	program.EligibleVersions = nil
 
 	program.EligiblePools = []string{"A"}
 	assertQualified(poolA, 500)
@@ -266,6 +280,18 @@ func Test_QualifiedPools(t *testing.T) {
 	assertDisqualified(poolB, 500)
 	assertDisqualified(poolC, 500)
 	program.EligiblePairs = nil
+
+	program.DisqualifiedVersions = []string{"V1"}
+	assertDisqualified(poolA, 500)
+	assertQualified(poolD, 500)
+	assertQualified(poolE, 500)
+
+	program.DisqualifiedVersions = []string{"V1", "V3-stable"}
+	assertDisqualified(poolA, 500)
+	assertQualified(poolD, 500)
+	assertDisqualified(poolE, 500)
+
+	program.DisqualifiedVersions = nil
 
 	program.DisqualifiedPools = []string{"A"}
 	assertDisqualified(poolA, 500)

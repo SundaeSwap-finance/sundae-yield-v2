@@ -38,6 +38,8 @@ type Program struct {
 	// Any remaining emissions above this are *not* emitted, and instead rever to the treasury
 	EmissionCap uint64
 
+	// A list of eligible protocol versions
+	EligibleVersions []string
 	// A list of pools for which a delegation is considered valid
 	EligiblePools []string
 	// A list of assets for which *any* pools will be considered valid
@@ -47,6 +49,8 @@ type Program struct {
 		AssetA shared.AssetID
 		AssetB shared.AssetID
 	}
+	// A list of which protocol versions will be ignored
+	DisqualifiedVersions []string
 	// A list of pools for which delegation will be ignored
 	DisqualifiedPools []string
 	// A list of assets, for which *any* pools will be considered invalid
@@ -66,6 +70,7 @@ type Program struct {
 
 type Pool struct {
 	PoolIdent       string
+	Version         string
 	TransactionHash string
 	Slot            uint64
 	TotalLPTokens   uint64
