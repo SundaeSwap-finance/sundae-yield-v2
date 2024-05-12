@@ -201,6 +201,9 @@ func atLeastIntegerPercent(portion uint64, total uint64, percent int) bool {
 
 // Check if a pool is even *qualified* for rewards
 func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (bool, string) {
+	if pool.TotalLPTokens == 0 {
+		return false, "pool has 0 lp tokens"
+	}
 	if !atLeastIntegerPercent(locked, pool.TotalLPTokens, program.MinLPIntegerPercent) {
 		return false, fmt.Sprintf("less than %v%% of LP tokens locked", program.MinLPIntegerPercent)
 	}
