@@ -355,7 +355,11 @@ func SumDelegationWindow(program types.Program, qualifyingDelegationsPerPool map
 	windowedDelegation := map[string]uint64{}
 	for _, snapshot := range previousCalculations {
 		for poolIdent, amt := range snapshot.QualifyingDelegationByPool {
-			windowedDelegation[poolIdent] += amt
+			pi := poolIdent
+			if remapped, ok := program.DelegationRemap[poolIdent]; ok {
+				pi = remapped
+			}
+			windowedDelegation[pi] += amt
 		}
 	}
 	for poolIdent, amt := range qualifyingDelegationsPerPool {
