@@ -10,6 +10,7 @@ This also includes changes described in the following proposals:
  - https://governance.sundaeswap.finance/#/proposal#fc3294e71a2141f2147b32a72299c0b0bb061d44409d498bc8063141d7b0c0e9
  - https://governance.sundaeswap.finance/#/proposal#3073216b94547c3737246d5a6c2190e475cd71a00fafa8f7b753704898a942ec
  - https://governance.sundaeswap.finance/#/proposal#aad6e69a965debc3fa90d3bbe72c5d2aeceabcd14534b6f53265eaf4669b8cc7
+ - https://governance.sundaeswap.finance/#/proposal#0512345317001d99b1b068157ede9e908d255963cff9c4a00422a4e6fdbbe687
 
 Algorithm:
 - Any unclaimed Yield Farming v1 rewards will be assigned an expiration date 90 days after the launch of the new yield farming program.
@@ -38,11 +39,13 @@ Algorithm:
   - To calculate the daily emissions, SundaeSwap Labs will first take inventory of SUNDAE held at the Locking Contract.
   - Each UTXO of locked SUNDAE may encode a weighting for a set of pools, as described above; the absence of such a list will exclude all SUNDAE at that UTXO from consideration.
   - SundaeSwap Labs will then divide the SUNDAE at the UTXO among the selected options in accordance to the weight, rounding down and distributing millionths of a SUNDAE among the options in order until the total SUNDAE allocated equals the SUNDAE held at the UTXO.
+    - Delegations to pools in the `DelegationRemap` map will be assigned to their remapped counterparts instead.
   - Any pool that has less than 1% of the pools LP tokens held at the Locking Contract will be considered an abstention and will not be eligible for rewards.
   - Any pool, asset, or pair that is explicitly disqualified will also be disqualified, such as any ADA/SUNDAE pool.
+    - This includes disqualifications for protocol version, pair, pool, or asset.
   - We will sum up the allocated SUNDAE across all UTXOs held at the Locking Contract.
   - We will add this SUNDAE to the raw SUNDAE delegations from the previous 2 days, to deter wild swings in delegation.
-  - Any pools with fixed emissions will be assigned those emissions; for example, the ADA/SUNDAE pool (08) has a fixed emission of 133234.5 SUNDAE per day.
+  - Any pools with fixed emissions will be assigned those emissions; for example, the ADA/SUNDAE v3 pool has a fixed emission of 133234.5 SUNDAE per day.
   - Among the remaining qualified pools, the top N pools (currently 10), or the top pools that collectively receive P percent (currently 80%) of the total weight (whichever is fewer) will be eligible for yield farming rewards that day.
     - **ADDENDUM**: Perfect ties will be broken by those who have issued the fewest LP tokens, and then in favor of the lesser poolIdentifer
   - Note that this criteria can be updated by a governance vote.

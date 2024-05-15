@@ -63,6 +63,9 @@ type Program struct {
 	// A list of pools which are automatically considered to have crossed the percentile threshold
 	NepotismPools []string
 
+	// A map from poolIdent to poolIdent; delegation to the key will count as delegation to the value
+	DelegationRemap map[string]string
+
 	MinLPIntegerPercent   int
 	MaxPoolCount          int
 	MaxPoolIntegerPercent int

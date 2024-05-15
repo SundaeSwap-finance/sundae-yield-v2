@@ -97,7 +97,14 @@ func CalculateTotalDelegations(
 			frac = frac.Div(frac, num.Uint64(totalWeight).BigInt())
 			allocation := frac.Uint64()
 			delegatedAssetAmount += allocation
-			totalDelegationsByPoolIdent[delegation.PoolIdent] += allocation
+
+			// Some programs may map delegation to one pool (such as a v1 pool) to another (such as a corresponding v3 pool)
+			poolIdent := delegation.PoolIdent
+			if remappedTo, ok := program.DelegationRemap[poolIdent]; ok {
+				poolIdent = remappedTo
+			}
+
+			totalDelegationsByPoolIdent[poolIdent] += allocation
 		}
 
 		// ... and distributing millionths of a SUNDAE among the options in order until the total SUNDAE allocated equals the SUNDAE held at the UTXO.
@@ -113,7 +120,13 @@ func CalculateTotalDelegations(
 					continue
 				}
 				delegation := position.Delegation[idx]
-				totalDelegationsByPoolIdent[delegation.PoolIdent] += 1
+
+				poolIdent := delegation.PoolIdent
+				if remappedTo, ok := program.DelegationRemap[poolIdent]; ok {
+					poolIdent = remappedTo
+				}
+
+				totalDelegationsByPoolIdent[poolIdent] += 1
 				delegatedAssetAmount += 1
 				remainder -= 1
 			}

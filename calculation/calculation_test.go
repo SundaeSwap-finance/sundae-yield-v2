@@ -156,6 +156,26 @@ func Test_TotalDelegations(t *testing.T) {
 	assert.EqualValues(t, 150_000, delegationsByPool["02"])
 	assert.EqualValues(t, 100_000, delegationsByPool["03"])
 	assert.EqualValues(t, 300_000, totalDelegations)
+
+	// Should handle delegations in programs with pool remappings
+	program.DelegationRemap = map[string]string{
+		"01": "01V3",
+		"02": "02V3",
+	}
+	positions = []types.Position{
+		samplePosition("Me", 123_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}),
+		samplePosition("Me", 456_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		samplePosition("Me", 222_000, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
+		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
+		samplePosition("Me", 200_000, types.Delegation{Program: program.ID, PoolIdent: "01V3", Weight: 1}),
+	}
+	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, MockLookup{})
+	assert.Nil(t, err)
+	assert.EqualValues(t, 123_000+200_000, delegationsByPool["01V3"])
+	assert.EqualValues(t, 456_000+50_000, delegationsByPool["02V3"])
+	assert.EqualValues(t, 222_000+50_000, delegationsByPool["03"])
+	assert.EqualValues(t, 0, delegationsByPool["03V3"])
+	assert.EqualValues(t, totalDelegations, 123_000+456_000+222_000+100_000+200_000)
 }
 
 func Test_SummationConstraint(t *testing.T) {
