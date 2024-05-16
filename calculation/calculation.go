@@ -182,7 +182,7 @@ func CalculateTotalLPAtSnapshot(
 
 					poolsByIdent[pool.PoolIdent] = pool
 					lockedLPByIdent[pool.PoolIdent] += amount.Uint64()
-					if pool.AssetA == "" {
+					if pool.AssetA == "" || pool.AssetA == "." || pool.AssetA == "ada.lovelace" {
 						lockedLP := amount.BigInt()
 						totalLP := num.Uint64(pool.TotalLPTokens).BigInt()
 						numerator := big.NewInt(0).Mul(lockedLP, num.Uint64(pool.AssetAQuantity).BigInt())
@@ -258,6 +258,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 	if program.EligibleAssets != nil {
 		found := false
 		for _, assetID := range program.EligibleAssets {
+			// TODO: handle ada.lovelace
 			if assetID == pool.AssetA || assetID == pool.AssetB {
 				qualified = true
 				found = true
@@ -271,6 +272,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 	if program.EligiblePairs != nil {
 		found := false
 		for _, pair := range program.EligiblePairs {
+			// TODO: handle ada.lovelace
 			if pair.AssetA == pool.AssetA && pair.AssetB == pool.AssetB {
 				qualified = true
 				found = true
@@ -301,6 +303,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 	}
 	if program.DisqualifiedAssets != nil {
 		for _, assetID := range program.DisqualifiedAssets {
+			// TODO: handle ada.lovelace
 			if assetID == pool.AssetA || assetID == pool.AssetB {
 				qualified = false
 				reason += "One of the assets in this pool is explicitly disqualified; "
@@ -310,7 +313,17 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 	}
 	if program.DisqualifiedPairs != nil {
 		for _, pair := range program.DisqualifiedPairs {
-			if pair.AssetA == pool.AssetA && pair.AssetB == pool.AssetB {
+			// We're currently transitioning from "" and "." to "ada.lovelace"
+			// so normalize these before comparing
+			pairA := pair.AssetA
+			if pairA == "" || pairA == "." {
+				pairA = "ada.lovelace"
+			}
+			poolA := pool.AssetA
+			if poolA == "" || poolA == "." {
+				poolA = "ada.lovelace"
+			}
+			if pairA == poolA && pair.AssetB == pool.AssetB {
 				qualified = false
 				reason += "Pair is explicitly disqualified; "
 				break
