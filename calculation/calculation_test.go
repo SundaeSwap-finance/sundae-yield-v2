@@ -346,7 +346,7 @@ func Test_CalculateTotalLP(t *testing.T) {
 		"X": {PoolIdent: "X", LPAsset: "LP_X", TotalLPTokens: 500, AssetAQuantity: 1000},
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y", TotalLPTokens: 1000, AssetAQuantity: 100},
 	}
-	lockedLP, totalLP, totalValueByPool, totalValue, err := CalculateTotalLPAtSnapshot(context.Background(), 0, positions, pools)
+	lockedLP, totalLP, totalValueByPool, totalValue, err := CalculateTotalLPAtSnapshot(context.Background(), 0, positions, nil, pools)
 	assert.Nil(t, err)
 	assert.EqualValues(t, 300, lockedLP["X"])
 	assert.EqualValues(t, 500, lockedLP["Y"])
@@ -368,7 +368,7 @@ func Test_CalculateTotalLPWithAssetNames(t *testing.T) {
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y.Asset1", TotalLPTokens: 1000, AssetAQuantity: 100},
 	}
 
-	lockedLP, totalLP, totalValueByPool, totalValue, err := CalculateTotalLPAtSnapshot(context.Background(), 0, positions, pools)
+	lockedLP, totalLP, totalValueByPool, totalValue, err := CalculateTotalLPAtSnapshot(context.Background(), 0, positions, nil, pools)
 	assert.Nil(t, err)
 	assert.EqualValues(t, 300, lockedLP["X"])
 	assert.EqualValues(t, 500, lockedLP["Y"])

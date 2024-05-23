@@ -150,6 +150,7 @@ func CalculateTotalLPAtSnapshot(
 	ctx context.Context,
 	maxSlot uint64,
 	positions []types.Position,
+	referencePools map[shared.AssetID]string,
 	poolLookup PoolLookup,
 ) (map[string]uint64, map[string]uint64, map[string]uint64, uint64, error) {
 	poolsByIdent := map[string]types.Pool{}
@@ -182,14 +183,79 @@ func CalculateTotalLPAtSnapshot(
 
 					poolsByIdent[pool.PoolIdent] = pool
 					lockedLPByIdent[pool.PoolIdent] += amount.Uint64()
-					if pool.AssetA == "" || pool.AssetA == "." || pool.AssetA == "ada.lovelace" {
-						lockedLP := amount.BigInt()
-						totalLP := num.Uint64(pool.TotalLPTokens).BigInt()
-						numerator := big.NewInt(0).Mul(lockedLP, num.Uint64(pool.AssetAQuantity).BigInt())
-						assetA := big.NewInt(0).Div(numerator, totalLP)
-						valueByIdent[pool.PoolIdent] += assetA.Uint64() * 2
-						totalValue += assetA.Uint64() * 2
+
+					lockedLP := amount.BigInt()
+					totalLP := num.Uint64(pool.TotalLPTokens).BigInt()
+					lovelaceValue := big.NewInt(0)
+
+					quantityAssetA := big.NewInt(0).Div(
+						big.NewInt(0).Mul(
+							big.NewInt(2),
+							big.NewInt(0).Mul(
+								lockedLP,
+								big.NewInt(0).SetUint64(pool.AssetAQuantity),
+							),
+						),
+						totalLP,
+					)
+					quantityAssetB := big.NewInt(0).Div(
+						big.NewInt(0).Mul(
+							big.NewInt(2),
+							big.NewInt(0).Mul(
+								lockedLP,
+								big.NewInt(0).SetUint64(pool.AssetBQuantity),
+							),
+						),
+						totalLP,
+					)
+					// Now, we want to estimate the value of these LP tokens
+					// If it's an ADA/X pool, we can just estimate based on the ADA
+					if pool.AssetA == "" || pool.AssetA == "." || pool.AssetA == shared.AdaAssetID {
+						// We can use the quantityA as ada directly
+						lovelaceValue = quantityAssetA
+					} else if referencePools[pool.AssetA] != "" || referencePools[pool.AssetB] != "" {
+						refPoolIdent := referencePools[pool.AssetA]
+						if refPoolIdent == "" {
+							refPoolIdent = referencePools[pool.AssetB]
+						}
+						// Otherwise, we know how much equivalent assetA or assetB we have, so we can translate that into ADA through a reference pool
+						// Lookup the appropriate reference pool
+						referencePool, err := poolLookup.PoolByIdent(ctx, refPoolIdent)
+						if err != nil {
+							return nil, nil, nil, 0, fmt.Errorf("failed to lookup reference pool %v: %w", referencePools[pool.AssetA], err)
+						}
+						// Make sure it's an ADA/X pool
+						if referencePool.AssetA != "" && referencePool.AssetA != "." && referencePool.AssetA != shared.AdaAssetID {
+							return nil, nil, nil, 0, fmt.Errorf("reference pool %v doesn't have ADA as assetA", referencePools[pool.AssetA])
+						}
+
+						var relevantQuantity *big.Int
+
+						// If the other half of the pair is pool assetA, then we convert our A quantity to lovelace equivalent
+						// otherwise we convert our B quantity to lovelace equivalent
+						if referencePool.AssetB == pool.AssetA {
+							relevantQuantity = quantityAssetA
+						} else if referencePool.AssetB == pool.AssetB {
+							relevantQuantity = quantityAssetB
+						} else {
+							// The reference pool is misconfigured, because it doesn't actually refer to an ADA/X pool for one of the items of the pair
+							return nil, nil, nil, 0, fmt.Errorf("reference pool %v doesn't have either asset as assetB", referencePools[pool.AssetA])
+						}
+						// Now, we can take the quantity of that token, multiply it by the lovelace amount, and then divide out by assetB to convert
+						// units into lovelace
+						lovelaceValue = big.NewInt(0).Div(
+							big.NewInt(0).Mul(
+								relevantQuantity,
+								big.NewInt(0).SetUint64(referencePool.AssetAQuantity),
+							),
+							big.NewInt(0).SetUint64(referencePool.AssetBQuantity),
+						)
+					} else {
+						fmt.Printf("WARNING: missing reference pool for %v\n", pool.PoolIdent)
 					}
+
+					totalValue += lovelaceValue.Uint64()
+					valueByIdent[pool.PoolIdent] += lovelaceValue.Uint64()
 				}
 			}
 		}
@@ -826,7 +892,7 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	}
 
 	// Sum up the LP-seconds per pool, and estimate the value
-	lockedLPByPool, totalLPByPool, estimatedValueByPool, totalEstimatedValue, err := CalculateTotalLPAtSnapshot(ctx, endSlot, positions, poolLookup)
+	lockedLPByPool, totalLPByPool, estimatedValueByPool, totalEstimatedValue, err := CalculateTotalLPAtSnapshot(ctx, endSlot, positions, program.ReferencePools, poolLookup)
 	if err != nil {
 		return CalculationOutputs{}, fmt.Errorf("failed to calculate total LP: %w", err)
 	}
@@ -887,8 +953,12 @@ func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, e
 	// Find the pool that we should use for price reference, so we can estimate the ADA value of what was emitted
 	var emittedLovelaceValue uint64
 	emittedLovelaceValueByPool := map[string]uint64{}
-	if program.ReferencePool != "" {
-		referencePool, err := poolLookup.PoolByIdent(ctx, program.ReferencePool)
+	if program.ReferencePool != "" || program.ReferencePools != nil {
+		refPoolIdent := program.ReferencePool
+		if refPoolIdent == "" {
+			refPoolIdent = program.ReferencePools[program.EmittedAsset]
+		}
+		referencePool, err := poolLookup.PoolByIdent(ctx, refPoolIdent)
 		if err != nil {
 			return CalculationOutputs{}, fmt.Errorf("failure to fetch reference pool for pricing %v: %w", program.ReferencePool, err)
 		}
