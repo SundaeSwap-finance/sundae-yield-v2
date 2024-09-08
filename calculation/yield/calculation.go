@@ -1,4 +1,4 @@
-package calculation
+package yield
 
 import (
 	"context"
@@ -13,19 +13,12 @@ import (
 	"github.com/SundaeSwap-finance/sundae-yield-v2/types"
 )
 
-type PoolLookup interface {
-	PoolByIdent(ctx context.Context, poolIdent string) (types.Pool, error)
-	PoolByLPToken(ctx context.Context, lpToken shared.AssetID) (types.Pool, error)
-	IsLPToken(assetId shared.AssetID) bool
-	LPTokenToPoolIdent(lpToken shared.AssetID) (string, error)
-}
-
 // Calculate the total amount of sundae delegated to each pool, according to each users chosen "weighting"
 func CalculateTotalDelegations(
 	ctx context.Context,
-	program types.Program,
+	program types.YieldProgram,
 	positions []types.Position,
-	poolLookup PoolLookup,
+	poolLookup types.PoolLookup,
 ) (map[string]uint64, uint64, error) {
 	totalDelegationsByPoolIdent := map[string]uint64{}
 	if program.StakedAsset == "" {
@@ -151,7 +144,7 @@ func CalculateTotalLPAtSnapshot(
 	maxSlot uint64,
 	positions []types.Position,
 	referencePools map[shared.AssetID]string,
-	poolLookup PoolLookup,
+	poolLookup types.PoolLookup,
 ) (map[string]uint64, map[string]uint64, map[string]uint64, uint64, error) {
 	poolsByIdent := map[string]types.Pool{}
 	lockedLPByIdent := map[string]uint64{}
@@ -279,7 +272,7 @@ func atLeastIntegerPercent(portion uint64, total uint64, percent int) bool {
 }
 
 // Check if a pool is even *qualified* for rewards
-func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (bool, string) {
+func isPoolQualified(program types.YieldProgram, pool types.Pool, locked uint64) (bool, string) {
 	if pool.TotalLPTokens == 0 {
 		return false, "pool has 0 lp tokens"
 	}
@@ -400,7 +393,7 @@ func isPoolQualified(program types.Program, pool types.Pool, locked uint64) (boo
 }
 
 // Check which pools are disqualified and why, and return just the qualified delegation amounts
-func DisqualifyPools(ctx context.Context, program types.Program, lockedLPByPool map[string]uint64, delegationByPool map[string]uint64, poolLookup PoolLookup) (map[string]uint64, map[string]string, error) {
+func DisqualifyPools(ctx context.Context, program types.YieldProgram, lockedLPByPool map[string]uint64, delegationByPool map[string]uint64, poolLookup types.PoolLookup) (map[string]uint64, map[string]string, error) {
 	qualifyingDelegationsPerPool := map[string]uint64{}
 	poolDisqualificationReasons := map[string]string{}
 	for poolIdent, locked := range lockedLPByPool {
@@ -422,7 +415,7 @@ func DisqualifyPools(ctx context.Context, program types.Program, lockedLPByPool 
 }
 
 // Sum up the qualifying delegations over the last several days, to give each pool some "sticking" power
-func SumDelegationWindow(program types.Program, qualifyingDelegationsPerPool map[string]uint64, previousCalculations []CalculationOutputs) (map[string]uint64, error) {
+func SumDelegationWindow(program types.YieldProgram, qualifyingDelegationsPerPool map[string]uint64, previousCalculations []CalculationOutputs) (map[string]uint64, error) {
 	// A 3 day delegation window is today, plus two previous days
 	// but, when a program is just starting, we don't have days to base it off of so we use a <
 	if (program.ConsecutiveDelegationWindow == 0 && len(previousCalculations) != 0) ||
@@ -450,9 +443,9 @@ func SumDelegationWindow(program types.Program, qualifyingDelegationsPerPool map
 // Select the top pools according to the program criteria
 func SelectEligiblePoolsForEmission(
 	ctx context.Context,
-	program types.Program,
+	program types.YieldProgram,
 	delegationsByPool map[string]uint64,
-	poolLookup PoolLookup,
+	poolLookup types.PoolLookup,
 ) (map[string]uint64, error) {
 	// Convert the map into a list of candidates, so we can sort them
 	type Candidate struct {
@@ -536,7 +529,7 @@ func SelectEligiblePoolsForEmission(
 }
 
 // Split the daily emissions of the program among a set of pools that have been chosen for emissions
-func DistributeEmissionsToPools(program types.Program, poolsEligibleForEmissionsByIdent map[string]uint64) map[string]uint64 {
+func DistributeEmissionsToPools(program types.YieldProgram, poolsEligibleForEmissionsByIdent map[string]uint64) map[string]uint64 {
 	// We'll need to loop over pools round-robin by largest value; ordering of maps is non-deterministic
 	type Pairs struct {
 		PoolIdent string
@@ -619,7 +612,7 @@ func DistributeEmissionsToPools(program types.Program, poolsEligibleForEmissions
 }
 
 // Truncate the emissions to the maximum emission cap
-func TruncateEmissions(program types.Program, emissionsByPool map[string]uint64) map[string]uint64 {
+func TruncateEmissions(program types.YieldProgram, emissionsByPool map[string]uint64) map[string]uint64 {
 	if program.EmissionCap == 0 {
 		return emissionsByPool
 	}
@@ -639,7 +632,7 @@ func TruncateEmissions(program types.Program, emissionsByPool map[string]uint64)
 
 // Compute the total LP token days that each owner has; We multiply the LP tokens by seconds they were locked, and then divide by 86400.
 // This effectively divides the LP tokens by the fraction of the day they are locked, to prevent someone locking in the last minute of the day to receive rewards
-func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLookup, minSlot uint64, maxSlot uint64) (map[string]map[shared.AssetID]uint64, map[shared.AssetID]uint64) {
+func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup types.PoolLookup, minSlot uint64, maxSlot uint64) (map[string]map[shared.AssetID]uint64, map[shared.AssetID]uint64) {
 	lpDaysByOwner := map[string]map[shared.AssetID]uint64{}
 	lpDaysByAsset := map[shared.AssetID]uint64{}
 	for _, p := range positions {
@@ -685,7 +678,7 @@ func TotalLPDaysByOwnerAndAsset(positions []types.Position, poolLookup PoolLooku
 }
 
 // Switch the map key from pool Ident to LP token
-func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup PoolLookup) (map[shared.AssetID]uint64, error) {
+func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup types.PoolLookup) (map[shared.AssetID]uint64, error) {
 	byLPAsset := map[shared.AssetID]uint64{}
 	for poolIdent, amount := range byPool {
 		if amount == 0 {
@@ -701,7 +694,7 @@ func RegroupByAsset(ctx context.Context, byPool map[string]uint64, poolLookup Po
 }
 
 // Switch the map key from LP token to pool Ident
-func RegroupByPool(ctx context.Context, byAsset map[shared.AssetID]uint64, poolLookup PoolLookup) (map[string]uint64, error) {
+func RegroupByPool(ctx context.Context, byAsset map[shared.AssetID]uint64, poolLookup types.PoolLookup) (map[string]uint64, error) {
 	// Note: assumes bijection
 	byIdent := map[string]uint64{}
 	for asset, amount := range byAsset {
@@ -799,7 +792,7 @@ func DistributeEmissionsToOwners(lpWeightByOwner map[string]map[shared.AssetID]u
 }
 
 // Convert a set of emissions records into actual earnings we can save in a database
-func EmissionsByOwnerToEarnings(date types.Date, program types.Program, emissionsByOwner map[string]map[string]uint64, ownersByID map[string]types.MultisigScript) ([]types.Earning, map[string]uint64) {
+func EmissionsByOwnerToEarnings(date types.Date, program types.YieldProgram, emissionsByOwner map[string]map[string]uint64, ownersByID map[string]types.MultisigScript) ([]types.Earning, map[string]uint64) {
 	var ret []types.Earning
 	total := map[string]uint64{}
 	for ownerID, perLPToken := range emissionsByOwner {
@@ -875,7 +868,7 @@ type CalculationOutputs struct {
 	Earnings []types.Earning
 }
 
-func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, endSlot uint64, program types.Program, previousResults []CalculationOutputs, positions []types.Position, poolLookup PoolLookup) (CalculationOutputs, error) {
+func CalculateEarnings(ctx context.Context, date types.Date, startSlot uint64, endSlot uint64, program types.YieldProgram, previousResults []CalculationOutputs, positions []types.Position, poolLookup types.PoolLookup) (CalculationOutputs, error) {
 	// Check for start and end dates, inclusive
 	if date < program.FirstDailyRewards {
 		return CalculationOutputs{}, nil

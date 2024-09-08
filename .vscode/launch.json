@@ -1,0 +1,25 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "request": "launch",
+            "name": "Launch Program",
+            "type": "node",
+            "cwd": "${workspaceFolder}/builder",
+            "runtimeExecutable": "/run/current-system/sw/bin/deno",
+            "runtimeArgs": [
+                "run",
+                "--inspect-wait",
+                "--allow-all",
+                "${workspaceFolder}/builder/publish.ts"
+            ],
+            "args": [
+                "--mnemonicFile script-mnemonic.txt --env mainnet --dry",
+            ],
+            "attachSimplePort": 9229
+        }
+    ]
+}

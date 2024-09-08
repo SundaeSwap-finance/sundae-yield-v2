@@ -1,0 +1,25 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "deno",
+            "command": "run",
+            "options": {
+                "cwd": "builder"
+            },
+            "env": {
+                "BLOCKFROST_API_KEY": "mainnetJdBKbNMF1xSnd5B9qKtLGQly66WWEWA9"
+            },
+            "args": [
+                "./publish.ts", "-A", "--mnemonicFile", "script-mnemonic.txt", "--env", "mainnet", "--dry"
+            ],
+            "problemMatcher": [
+                "$deno"
+            ],
+            "label": "deno: run"
+        }
+    ]
+}

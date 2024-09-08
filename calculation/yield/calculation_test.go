@@ -1,97 +1,45 @@
-package calculation
+package yield
 
 import (
 	"context"
 	"fmt"
 	"math/rand"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/num"
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/shared"
+	"github.com/SundaeSwap-finance/sundae-yield-v2/calculation/utilities"
 	"github.com/SundaeSwap-finance/sundae-yield-v2/types"
 	"github.com/tj/assert"
 )
 
-func sampleProgram(emissions uint64) types.Program {
-	return types.Program{
-		ID:                  "Test",
-		FirstDailyRewards:   "2001-01-01",
-		LastDailyRewards:    "2099-01-01", // If this code is still in use in 2099, call the police (after updating tests)
-		StakedAsset:         shared.AssetID("Staked"),
-		MinLPIntegerPercent: 1,
-		EmittedAsset:        shared.AssetID("Emitted"),
-		DailyEmission:       emissions,
-	}
-}
-
-func samplePosition(owner string, staked int64, delegations ...types.Delegation) types.Position {
-	return types.Position{
-		OwnerID:    owner,
-		Slot:       0,
-		SpentSlot:  0,
-		Value:      compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: shared.AssetID("Staked"), Amount: num.Int64(staked)})),
-		Delegation: delegations,
-	}
-}
-
-type MockLookup map[string]types.Pool
-
-func (m MockLookup) PoolByIdent(ctx context.Context, poolIdent string) (types.Pool, error) {
-	if pool, ok := m[poolIdent]; ok {
-		return pool, nil
-	}
-	return types.Pool{}, fmt.Errorf("pool not found")
-}
-func (m MockLookup) PoolByLPToken(ctx context.Context, lpToken shared.AssetID) (types.Pool, error) {
-	if !m.IsLPToken(lpToken) {
-		return types.Pool{}, fmt.Errorf("not an lp token")
-	}
-	for _, pool := range m {
-		if pool.LPAsset == lpToken {
-			return pool, nil
-		}
-	}
-	return types.Pool{}, fmt.Errorf("pool not found")
-}
-func (m MockLookup) IsLPToken(assetId shared.AssetID) bool {
-	return strings.HasPrefix(assetId.String(), "LP_")
-}
-func (m MockLookup) LPTokenToPoolIdent(lpToken shared.AssetID) (string, error) {
-	if pool, err := m.PoolByLPToken(context.Background(), lpToken); err != nil {
-		return "", err
-	} else {
-		return pool.PoolIdent, nil
-	}
-}
-
 func Test_TotalDelegations(t *testing.T) {
-	program := sampleProgram(500000_000_000)
+	program := utilities.SampleYieldProgram(500000_000_000)
 
 	// The simplest case
 	positions := []types.Position{
-		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}),
+		utilities.SamplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}),
 	}
-	delegationsByPool, totalDelegations, err := CalculateTotalDelegations(context.Background(), program, positions, MockLookup{})
+	delegationsByPool, totalDelegations, err := CalculateTotalDelegations(context.Background(), program, positions, utilities.MockLookup{})
 	assert.Nil(t, err)
 	assert.EqualValues(t, 100_000, delegationsByPool["01"])
 	assert.EqualValues(t, 100_000, totalDelegations)
 
 	positions = []types.Position{
-		samplePosition("Me", 100_000),
+		utilities.SamplePosition("Me", 100_000),
 	}
-	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, MockLookup{})
+	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, utilities.MockLookup{})
 	assert.Nil(t, err)
 	assert.EqualValues(t, 100_000, delegationsByPool[""])
 	assert.EqualValues(t, 100_000, totalDelegations)
 
 	// Should split evenly between delegations
 	positions = []types.Position{
-		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		utilities.SamplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 	}
-	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, MockLookup{})
+	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, utilities.MockLookup{})
 	assert.Nil(t, err)
 	assert.EqualValues(t, 50_000, delegationsByPool["01"])
 	assert.EqualValues(t, 50_000, delegationsByPool["02"])
@@ -99,9 +47,9 @@ func Test_TotalDelegations(t *testing.T) {
 
 	// Should handle bankers rounding
 	positions = []types.Position{
-		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 2}),
+		utilities.SamplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 2}),
 	}
-	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, MockLookup{})
+	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, utilities.MockLookup{})
 	assert.Nil(t, err)
 	assert.EqualValues(t, 33_334, delegationsByPool["01"])
 	assert.EqualValues(t, 66_666, delegationsByPool["02"])
@@ -109,10 +57,10 @@ func Test_TotalDelegations(t *testing.T) {
 
 	// Should handle multiple positions
 	positions = []types.Position{
-		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
-		samplePosition("Me", 200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
+		utilities.SamplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		utilities.SamplePosition("Me", 200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
 	}
-	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, MockLookup{})
+	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, utilities.MockLookup{})
 	assert.Nil(t, err)
 	assert.EqualValues(t, 50_000, delegationsByPool["01"])
 	assert.EqualValues(t, 150_000, delegationsByPool["02"])
@@ -120,7 +68,7 @@ func Test_TotalDelegations(t *testing.T) {
 	assert.EqualValues(t, 300_000, totalDelegations)
 
 	// Should handle positions with LP tokens
-	pools := MockLookup{
+	pools := utilities.MockLookup{
 		"01": {
 			PoolIdent:      "01",
 			TotalLPTokens:  100_000,
@@ -132,7 +80,7 @@ func Test_TotalDelegations(t *testing.T) {
 		},
 	}
 	positions = []types.Position{
-		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		utilities.SamplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
 	}
 	value := shared.Value(positions[0].Value)
 	value.AddAsset(shared.Coin{AssetId: "LP_01", Amount: num.Uint64(50_000)})
@@ -146,11 +94,11 @@ func Test_TotalDelegations(t *testing.T) {
 	// Should handle delegations to multiple programs
 
 	positions = []types.Position{
-		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: "OTHER_PROGRAM", PoolIdent: "99", Weight: 100}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
-		samplePosition("Me", 200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
+		utilities.SamplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}, types.Delegation{Program: "OTHER_PROGRAM", PoolIdent: "99", Weight: 100}, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		utilities.SamplePosition("Me", 200_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
 	}
 
-	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, MockLookup{})
+	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, utilities.MockLookup{})
 	assert.Nil(t, err)
 	assert.EqualValues(t, 50_000, delegationsByPool["01"])
 	assert.EqualValues(t, 150_000, delegationsByPool["02"])
@@ -163,13 +111,13 @@ func Test_TotalDelegations(t *testing.T) {
 		"02": "02V3",
 	}
 	positions = []types.Position{
-		samplePosition("Me", 123_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}),
-		samplePosition("Me", 456_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
-		samplePosition("Me", 222_000, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
-		samplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
-		samplePosition("Me", 200_000, types.Delegation{Program: program.ID, PoolIdent: "01V3", Weight: 1}),
+		utilities.SamplePosition("Me", 123_000, types.Delegation{Program: program.ID, PoolIdent: "01", Weight: 1}),
+		utilities.SamplePosition("Me", 456_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}),
+		utilities.SamplePosition("Me", 222_000, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
+		utilities.SamplePosition("Me", 100_000, types.Delegation{Program: program.ID, PoolIdent: "02", Weight: 1}, types.Delegation{Program: program.ID, PoolIdent: "03", Weight: 1}),
+		utilities.SamplePosition("Me", 200_000, types.Delegation{Program: program.ID, PoolIdent: "01V3", Weight: 1}),
 	}
-	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, MockLookup{})
+	delegationsByPool, totalDelegations, err = CalculateTotalDelegations(context.Background(), program, positions, utilities.MockLookup{})
 	assert.Nil(t, err)
 	assert.EqualValues(t, 123_000+200_000, delegationsByPool["01V3"])
 	assert.EqualValues(t, 456_000+50_000, delegationsByPool["02V3"])
@@ -179,7 +127,7 @@ func Test_TotalDelegations(t *testing.T) {
 }
 
 func Test_SummationConstraint(t *testing.T) {
-	program := sampleProgram(500000_000_000)
+	program := utilities.SampleYieldProgram(500000_000_000)
 
 	// Should always add up to initial sundae
 	initialSundae := rand.Int63()
@@ -191,9 +139,9 @@ func Test_SummationConstraint(t *testing.T) {
 		delegations = append(delegations, types.Delegation{PoolIdent: fmt.Sprintf("%v", pool), Weight: uint32(weight)})
 	}
 	positions := []types.Position{
-		samplePosition("Me", initialSundae, delegations...),
+		utilities.SamplePosition("Me", initialSundae, delegations...),
 	}
-	delegationsByPool, totalDelegation, err := CalculateTotalDelegations(context.Background(), program, positions, MockLookup{})
+	delegationsByPool, totalDelegation, err := CalculateTotalDelegations(context.Background(), program, positions, utilities.MockLookup{})
 	assert.Nil(t, err)
 	actualSum := uint64(0)
 	for _, s := range delegationsByPool {
@@ -204,7 +152,7 @@ func Test_SummationConstraint(t *testing.T) {
 }
 
 func Test_SumWindow(t *testing.T) {
-	program := sampleProgram(500000_000_000)
+	program := utilities.SampleYieldProgram(500000_000_000)
 	program.ConsecutiveDelegationWindow = 2
 	qualifyingDelegations := map[string]uint64{
 		"A": 100,
@@ -242,7 +190,7 @@ func Test_AtLeastOnePercent(t *testing.T) {
 }
 
 func Test_QualifiedPools(t *testing.T) {
-	program := sampleProgram(500_000)
+	program := utilities.SampleYieldProgram(500_000)
 	poolA := types.Pool{Version: "V1", PoolIdent: "A", AssetA: "A", AssetB: "X", TotalLPTokens: 1500}
 	poolB := types.Pool{Version: "V1", PoolIdent: "B", AssetA: "B", AssetB: "X", TotalLPTokens: 1500}
 	poolC := types.Pool{Version: "V1", PoolIdent: "C", AssetA: "C", AssetB: "Y", TotalLPTokens: 1500}
@@ -342,7 +290,7 @@ func Test_CalculateTotalLP(t *testing.T) {
 		{OwnerID: "B", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X", Amount: num.Uint64(200)}))},
 		{OwnerID: "C", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_Y", Amount: num.Uint64(500)}))},
 	}
-	pools := MockLookup{
+	pools := utilities.MockLookup{
 		"X": {PoolIdent: "X", LPAsset: "LP_X", TotalLPTokens: 500, AssetAQuantity: 1000},
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y", TotalLPTokens: 1000, AssetAQuantity: 100},
 	}
@@ -363,7 +311,7 @@ func Test_CalculateTotalLPWithAssetNames(t *testing.T) {
 		{OwnerID: "B", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_X.Asset1", Amount: num.Uint64(200)}))},
 		{OwnerID: "C", Value: compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: "LP_Y.Asset1", Amount: num.Uint64(500)}))},
 	}
-	pools := MockLookup{
+	pools := utilities.MockLookup{
 		"X": {PoolIdent: "X", LPAsset: "LP_X.Asset1", TotalLPTokens: 500, AssetAQuantity: 1000},
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y.Asset1", TotalLPTokens: 1000, AssetAQuantity: 100},
 	}
@@ -380,10 +328,10 @@ func Test_CalculateTotalLPWithAssetNames(t *testing.T) {
 }
 
 func Test_PoolForEmissions(t *testing.T) {
-	program := sampleProgram(500_000)
+	program := utilities.SampleYieldProgram(500_000)
 	program.MaxPoolCount = 2
 	program.MaxPoolIntegerPercent = 100
-	pools := MockLookup{"A": types.Pool{PoolIdent: "A"}, "B": types.Pool{PoolIdent: "B"}, "C": types.Pool{PoolIdent: "C"}}
+	pools := utilities.MockLookup{"A": types.Pool{PoolIdent: "A"}, "B": types.Pool{PoolIdent: "B"}, "C": types.Pool{PoolIdent: "C"}}
 	selectedPools, err := SelectEligiblePoolsForEmission(context.Background(), program, map[string]uint64{
 		"A": 100,
 		"B": 200,
@@ -403,7 +351,7 @@ func Test_PoolForEmissions(t *testing.T) {
 
 	program.MaxPoolCount = 10
 	program.MaxPoolIntegerPercent = 33
-	pools = MockLookup{
+	pools = utilities.MockLookup{
 		"A": types.Pool{},
 		"B": types.Pool{},
 		"C": types.Pool{},
@@ -424,7 +372,7 @@ func Test_PoolForEmissions(t *testing.T) {
 }
 
 func Test_PoolsForEmissions_WithNepotism(t *testing.T) {
-	program := sampleProgram(500_000)
+	program := utilities.SampleYieldProgram(500_000)
 	program.NepotismPools = []string{"B"}
 	program.MaxPoolCount = 2
 	program.MaxPoolIntegerPercent = 20
@@ -433,13 +381,13 @@ func Test_PoolsForEmissions_WithNepotism(t *testing.T) {
 		"B": 100,
 		"C": 200,
 		"D": 300,
-	}, MockLookup{"A": types.Pool{}, "B": types.Pool{}, "C": types.Pool{}, "D": types.Pool{}})
+	}, utilities.MockLookup{"A": types.Pool{}, "B": types.Pool{}, "C": types.Pool{}, "D": types.Pool{}})
 	assert.Nil(t, err)
 	assert.EqualValues(t, map[string]uint64{"D": 300, "B": 100}, selectedPools)
 }
 
 func Test_EmissionsToPools(t *testing.T) {
-	program := sampleProgram(500_000_000_000)
+	program := utilities.SampleYieldProgram(500_000_000_000)
 	emissions := DistributeEmissionsToPools(program, map[string]uint64{
 		"A": 1000,
 	})
@@ -469,7 +417,7 @@ func Test_EmissionsToPools(t *testing.T) {
 }
 
 func Test_TruncateEmissions(t *testing.T) {
-	program := sampleProgram(500_000_000_000)
+	program := utilities.SampleYieldProgram(500_000_000_000)
 	program.EmissionCap = 200_000_000_000
 	program.FixedEmissions = map[string]uint64{
 		"C": 1_000_000_000,
@@ -483,7 +431,7 @@ func Test_TruncateEmissions(t *testing.T) {
 }
 
 func Test_OwnerByLPAndAsset(t *testing.T) {
-	pools := MockLookup{
+	pools := utilities.MockLookup{
 		"X": {PoolIdent: "X", LPAsset: "LP_X"},
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y"},
 	}
@@ -561,7 +509,7 @@ func Test_OwnerByLPAndAsset(t *testing.T) {
 }
 
 func Test_RegroupByAsset(t *testing.T) {
-	pools := MockLookup{
+	pools := utilities.MockLookup{
 		"X": {PoolIdent: "X", LPAsset: "LP_X"},
 		"Y": {PoolIdent: "Y", LPAsset: "LP_Y"},
 	}
@@ -641,7 +589,7 @@ func makeValue(token string, amt uint64) compatibility.CompatibleValue {
 
 func Test_EmissionsToEarnings(t *testing.T) {
 	now := types.Date(time.Now().Format(types.DateFormat))
-	program := sampleProgram(500_000)
+	program := utilities.SampleYieldProgram(500_000)
 	ownerA := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("A")}}
 	ownerB := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("B")}}
 	ownerC := types.MultisigScript{Signature: &types.Signature{KeyHash: []byte("B")}}
@@ -685,7 +633,7 @@ func Test_Calculate_Earnings(t *testing.T) {
 	numPositions := rand.Intn(3000) + 1000
 	numOwners := rand.Intn(numPositions-1) + 1
 	numPools := rand.Intn(300) + 100
-	program := sampleProgram(500_000_000_000)
+	program := utilities.SampleYieldProgram(500_000_000_000)
 	program.ConsecutiveDelegationWindow = 3
 	previousDays := []CalculationOutputs{}
 	for i := 0; i < 10; i++ {
@@ -738,7 +686,7 @@ func Test_Calculate_Earnings(t *testing.T) {
 }
 
 func Benchmark_Calculate_Earnings(b *testing.B) {
-	program := sampleProgram(500_000_000_000)
+	program := utilities.SampleYieldProgram(500_000_000_000)
 	for i := 0; i < b.N; i++ {
 		numPositions := 100_000
 		numOwners := 90_000
@@ -747,10 +695,10 @@ func Benchmark_Calculate_Earnings(b *testing.B) {
 	}
 }
 
-func Random_Calc_Earnings(program types.Program, numPositions, numOwners, numPools int, previousDays []CalculationOutputs) (types.Program, CalculationOutputs, error) {
+func Random_Calc_Earnings(program types.YieldProgram, numPositions, numOwners, numPools int, previousDays []CalculationOutputs) (types.YieldProgram, CalculationOutputs, error) {
 	now := types.Date(time.Now().Format(types.DateFormat))
 	var positions []types.Position
-	pools := MockLookup{}
+	pools := utilities.MockLookup{}
 
 	lockedByPool := map[int]uint64{}
 

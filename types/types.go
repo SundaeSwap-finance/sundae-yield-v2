@@ -1,6 +1,7 @@
 package types
 
 import (
+	"context"
 	"time"
 
 	"github.com/SundaeSwap-finance/ogmigo/v6/ouroboros/chainsync/compatibility"
@@ -11,8 +12,10 @@ import (
 const DateFormat = "2006-01-02" // Format dates like this, so they can be compared lexographically
 type Date = string
 
-type Program struct {
-	ID                string
+type YieldProgram struct {
+	ID string
+
+	EarningExpiration *time.Duration
 	FirstDailyRewards Date
 	LastDailyRewards  Date
 
@@ -25,8 +28,6 @@ type Program struct {
 	// Sum up delegations from the last N days, to smooth out instantaneous changes in delegation
 	// as per the following governance proposal: https://governance.sundaeswap.finance/#/proposal#fc3294e71a2141f2147b32a72299c0b0bb061d44409d498bc8063141d7b0c0e9
 	ConsecutiveDelegationWindow int
-
-	EarningExpiration *time.Duration
 
 	// Any pools that received a fixed emission
 	// for example, pool 08 receives exactly 133234.5 tokens per day
@@ -41,17 +42,22 @@ type Program struct {
 
 	// A list of eligible protocol versions
 	EligibleVersions []string
+
 	// A list of pools for which a delegation is considered valid
 	EligiblePools []string
+
 	// A list of assets for which *any* pools will be considered valid
 	EligibleAssets []shared.AssetID
+
 	// A list of assets, for which *any* pool with these two assets will be considered valid
 	EligiblePairs []struct {
 		AssetA shared.AssetID
 		AssetB shared.AssetID
 	}
+
 	// A list of which protocol versions will be ignored
 	DisqualifiedVersions []string
+
 	// A list of pools for which delegation will be ignored
 	DisqualifiedPools []string
 	// A list of assets, for which *any* pools will be considered invalid
@@ -70,6 +76,16 @@ type Program struct {
 	MinLPIntegerPercent   int
 	MaxPoolCount          int
 	MaxPoolIntegerPercent int
+}
+
+type IncentiveProgram struct {
+	ID                   string
+	FirstDailyRewards    Date
+	LastDailyRewards     Date
+	StakedAsset          shared.AssetID
+	EmittedAsset         shared.AssetID
+	StakedReferencePool  string
+	EmittedReferencePool string
 }
 
 type Pool struct {
@@ -111,4 +127,11 @@ type Earning struct {
 	ExpirationDate *time.Time
 	Value          compatibility.CompatibleValue
 	ValueByLPToken map[string]compatibility.CompatibleValue
+}
+
+type PoolLookup interface {
+	PoolByIdent(ctx context.Context, poolIdent string) (Pool, error)
+	PoolByLPToken(ctx context.Context, lpToken shared.AssetID) (Pool, error)
+	IsLPToken(assetId shared.AssetID) bool
+	LPTokenToPoolIdent(lpToken shared.AssetID) (string, error)
 }
