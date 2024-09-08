@@ -35,6 +35,7 @@ func Test_CalculateDelegationWeights(t *testing.T) {
 		utilities.SamplePosition("A", 200, delegation),
 		utilities.SamplePosition("B", 150, delegation),
 		utilities.SamplePosition("C", 150),
+		utilities.SamplePosition("D", 0, delegation),
 	}
 
 	pools := utilities.MockLookup{}
@@ -42,8 +43,10 @@ func Test_CalculateDelegationWeights(t *testing.T) {
 	weights, total, err := CalculateDelegationWeights(context.Background(), program, positions, 0, 2592000, pools)
 	assert.Nil(t, err)
 	assert.EqualValues(t, 450, total.Uint64())
+	assert.Len(t, weights, 2)
 	assert.Contains(t, weights, "A")
 	assert.EqualValues(t, 300, weights["A"])
+	assert.Contains(t, weights, "B")
 	assert.EqualValues(t, 150, weights["B"])
 }
 
@@ -69,8 +72,10 @@ func Test_CalculateDelegationWeights_WithLP(t *testing.T) {
 	weights, total, err := CalculateDelegationWeights(context.Background(), program, positions, 0, 2592000, pools)
 	assert.Nil(t, err)
 	assert.EqualValues(t, 650, total.Uint64())
+	assert.Len(t, weights, 2)
 	assert.Contains(t, weights, "A")
 	assert.EqualValues(t, 500, weights["A"])
+	assert.Contains(t, weights, "B")
 	assert.EqualValues(t, 150, weights["B"])
 }
 
@@ -96,8 +101,10 @@ func Test_CalculationDelegationWeights_WithTimedPositions(t *testing.T) {
 	weights, total, err := CalculateDelegationWeights(context.Background(), program, positions, 0, 2592000, pools)
 	assert.Nil(t, err)
 	assert.EqualValues(t, 100/4+200/4+150+200/4, total.Uint64())
+	assert.Len(t, weights, 2)
 	assert.Contains(t, weights, "A")
 	assert.EqualValues(t, 100/4+200/4+200/4, weights["A"])
+	assert.Contains(t, weights, "B")
 	assert.EqualValues(t, 150, weights["B"])
 }
 

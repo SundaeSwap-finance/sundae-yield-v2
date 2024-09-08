@@ -88,6 +88,9 @@ func CalculateDelegationWeights(
 		positionLength := num.Uint64(truncatedEnd - truncatedStart)
 		numerator := stakedAsset.Mul(positionLength)
 		weight := numerator.Div(windowLength)
+		if weight.Uint64() == 0 {
+			continue
+		}
 		total = total.Add(weight)
 		delegationWeightByOwner[position.OwnerID] += weight.Uint64()
 	}
