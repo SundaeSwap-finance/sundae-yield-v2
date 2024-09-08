@@ -28,11 +28,13 @@ func Test_PositionsToOwners(t *testing.T) {
 }
 
 func Test_CalculateDelegationWeights(t *testing.T) {
+	delegation := types.Delegation{Program: "A", PoolIdent: "B", Weight: 10}
 	program := utilities.SampleIncentiveProgram()
 	positions := []types.Position{
-		utilities.SamplePosition("A", 100),
-		utilities.SamplePosition("A", 200),
-		utilities.SamplePosition("B", 150),
+		utilities.SamplePosition("A", 100, delegation),
+		utilities.SamplePosition("A", 200, delegation),
+		utilities.SamplePosition("B", 150, delegation),
+		utilities.SamplePosition("C", 150),
 	}
 
 	pools := utilities.MockLookup{}
@@ -46,11 +48,12 @@ func Test_CalculateDelegationWeights(t *testing.T) {
 }
 
 func Test_CalculateDelegationWeights_WithLP(t *testing.T) {
+	delegation := types.Delegation{Program: "A", PoolIdent: "B", Weight: 10}
 	program := utilities.SampleIncentiveProgram()
 	positions := []types.Position{
-		utilities.SamplePosition("A", 100),
-		utilities.SamplePosition("A", 200),
-		utilities.SamplePosition("B", 150),
+		utilities.SamplePosition("A", 100, delegation),
+		utilities.SamplePosition("A", 200, delegation),
+		utilities.SamplePosition("B", 150, delegation),
 	}
 
 	positions[0].Value = compatibility.CompatibleValue(shared.ValueFromCoins(
@@ -72,11 +75,12 @@ func Test_CalculateDelegationWeights_WithLP(t *testing.T) {
 }
 
 func Test_CalculationDelegationWeights_WithTimedPositions(t *testing.T) {
+	delegation := types.Delegation{Program: "A", PoolIdent: "B", Weight: 10}
 	program := utilities.SampleIncentiveProgram()
 	positions := []types.Position{
-		utilities.SampleTimedPosition("A", 100, 0, 648000),
-		utilities.SampleTimedPosition("A", 200, 648000, 1296000),
-		utilities.SampleTimedPosition("B", 150, 0, 4592000),
+		utilities.SampleTimedPosition("A", 100, 0, 648000, delegation),
+		utilities.SampleTimedPosition("A", 200, 648000, 1296000, delegation),
+		utilities.SampleTimedPosition("B", 150, 0, 4592000, delegation),
 	}
 
 	positions[0].Value = compatibility.CompatibleValue(shared.ValueFromCoins(

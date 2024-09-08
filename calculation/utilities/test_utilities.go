@@ -50,7 +50,7 @@ func SamplePosition(owner string, staked int64, delegations ...types.Delegation)
 	}
 }
 
-func SampleTimedPosition(owner string, staked int64, start, end uint64) types.Position {
+func SampleTimedPosition(owner string, staked int64, start, end uint64, delegations ...types.Delegation) types.Position {
 	spentTx := ""
 	if end > 0 {
 		spentTx = "SPENT"
@@ -66,7 +66,7 @@ func SampleTimedPosition(owner string, staked int64, start, end uint64) types.Po
 		SpentSlot:        end,
 		SpentTransaction: spentTx,
 		Value:            compatibility.CompatibleValue(shared.ValueFromCoins(shared.Coin{AssetId: shared.AssetID("Staked"), Amount: num.Int64(staked)})),
-		Delegation:       []types.Delegation{},
+		Delegation:       delegations,
 	}
 }
 

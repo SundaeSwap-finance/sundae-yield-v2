@@ -48,6 +48,9 @@ func CalculateDelegationWeights(
 	windowLength := num.Uint64(endSlot - startSlot)
 	total := num.Uint64(0)
 	for _, position := range positions {
+		if len(position.Delegation) == 0 {
+			continue
+		}
 		truncatedStart := position.Slot
 		if truncatedStart < startSlot {
 			truncatedStart = startSlot
